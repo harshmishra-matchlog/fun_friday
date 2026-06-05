@@ -12,8 +12,8 @@ ADMIN_PASSWORD = "automationpaglu"
 
 # Puzzle window: Friday 11 AM to 3 PM (IST)
 PUZZLE_DAY = 4          # Monday=0 … Friday=4
-PUZZLE_START_HOUR = 11  # 11:00 AM
-PUZZLE_END_HOUR   = 15  # 03:00 PM
+PUZZLE_START_HOUR = 0  # 11:00 AM
+PUZZLE_END_HOUR   = 23  # 03:00 PM
 PUZZLE_DURATION_MINUTES = 15   # per-player timer
 
 GRID_SIZE = 12          # 12×12 grid
