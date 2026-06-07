@@ -77,9 +77,12 @@ def get_or_create_puzzle(week_date: str | None = None) -> dict:
         week_date = _next_friday()
 
     with get_conn() as conn:
-        # ── FORCE DELETE old puzzle so new snake-engine runs ──
-        # Remove this block after one successful deploy
-        conn.execute("DELETE FROM puzzles WHERE week_date = ?", (week_date,))
+        row = conn.execute(
+            "SELECT * FROM puzzles WHERE week_date = ?", (week_date,)
+        ).fetchone()
+
+        if row:
+            return dict(row)
 
         # Check if admin uploaded custom words for this week
         admin_row = conn.execute(
@@ -91,11 +94,10 @@ def get_or_create_puzzle(week_date: str | None = None) -> dict:
         else:
             words = random.sample(MASTER_WORD_POOL, DEFAULT_WORDS_PER_PUZZLE)
 
-        # Filter words that fit in grid
-        from config import GRID_SIZE
-        words = [w for w in words if len(w) <= GRID_SIZE][:DEFAULT_WORDS_PER_PUZZLE]
+        # Filter to reasonable length words only
+        words = [w for w in words if 3 <= len(w) <= 12][:DEFAULT_WORDS_PER_PUZZLE]
 
-        grid, placements = generate_grid(words)
+        grid, placements, grid_size = generate_grid(words)
 
         conn.execute(
             """INSERT INTO puzzles (week_date, words, grid, placements)
