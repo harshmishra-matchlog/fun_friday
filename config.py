@@ -1,128 +1,70 @@
 # ============================================================
-# puzzle_engine.py — NYT Strands-style placement
-# Words snake through grid in any connected path (any direction per step)
+# config.py — Fun Friday Puzzle Configuration
 # ============================================================
-import random
-import json
-from config import GRID_SIZE
 
-ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+ADMIN_EMAILS = [
+    "kulshresthauk71@gmail.com",
+    "harsh.mishra@matchlog.delivery",
+]
 
-# All 8 neighbours
-def neighbours(r, c, size):
-    for dr in [-1, 0, 1]:
-        for dc in [-1, 0, 1]:
-            if dr == 0 and dc == 0:
-                continue
-            nr, nc = r + dr, c + dc
-            if 0 <= nr < size and 0 <= nc < size:
-                yield nr, nc
+# ── Admin password — change this anytime, just restart the app ──
+ADMIN_PASSWORD = "automationpaglu"
 
+# Puzzle window: Friday 11 AM to 3 PM (IST)
+PUZZLE_DAY = 6          # Monday=0 … Friday=4
+PUZZLE_START_HOUR = 0  # 11:00 AM
+PUZZLE_END_HOUR   = 24  # 03:00 PM
+PUZZLE_DURATION_MINUTES = 15   # per-player timer
 
-def _place_word_snake(word, grid, occupied, size, attempts=600):
-    """
-    Place a word as a snake path — each step goes to any free 8-neighbour.
-    Returns list of (r,c) cells or None if failed.
-    """
-    for _ in range(attempts):
-        r = random.randint(0, size - 1)
-        c = random.randint(0, size - 1)
-        if occupied[r][c] and grid[r][c] != word[0]:
-            continue
+GRID_SIZE = 12          # 12×12 grid
 
-        path = [(r, c)]
-        visited = {(r, c)}
-        failed = False
+# ── Weekly word pool (admin can override via DB) ─────────────
+# Each week's words are drawn from this master list.
+# Admin can upload a custom list through the admin panel.
 
-        for ch in word[1:]:
-            nbrs = list(neighbours(path[-1][0], path[-1][1], size))
-            random.shuffle(nbrs)
-            placed = False
-            for nr, nc in nbrs:
-                if (nr, nc) in visited:
-                    continue
-                # cell must be free OR already have the same letter
-                if occupied[nr][nc] and grid[nr][nc] != ch:
-                    continue
-                path.append((nr, nc))
-                visited.add((nr, nc))
-                placed = True
-                break
-            if not placed:
-                failed = True
-                break
+MASTER_WORD_POOL = [
+    # Containers & Equipment
+    "CONTAINER", "TEUS", "FEUS", "REEFER", "FLATRACK", "OPENTOP",
+    "TANKTAINER", "ISOCONTAINER", "FLEXIBAG",
+    # Documents
+    "BILLOFLADING", "SEAWAY", "AIRWAY", "MANIFEST", "INVOICE",
+    "PACKINGLIST", "COO", "CERTIFICATE", "PACKING",
+    # Ports & Locations
+    "NHAVASHEVA", "MUNDRA", "PIPAVAV", "HAZIRA", "CHENNAI",
+    "KOLKATA", "COCHIN", "VIZAG", "TUTICORIN",
+    # Shipping Lines
+    "MAERSK", "MSC", "COSCO", "HAPAG", "EVERGREEN",
+    "YANGMING", "OOCL", "ZIMS", "SEALAND",
+    # Logistics Terms
+    "FREIGHT", "DEMURRAGE", "DETENTION", "FORWARDER", "BROKER",
+    "CUSTOMS", "CLEARANCE", "BONDED", "WAREHOUSE", "FUMIGATION",
+    # Trade Terms
+    "EXPORT", "IMPORT", "INCOTERMS", "EXWORKS", "CIFPORT",
+    "FOBPORT", "DDPTERM", "CFRTERM", "LCLETTEROFCREDIT",
+    # Operations
+    "STUFFING", "DESTUFFING", "TRANSSHIPMENT", "CONSOLIDATION",
+    "DECONSOLIDATION", "FCLTRUCK", "LCLTRUCK", "SURVEY",
+    # Ports & Terminals
+    "TERMINAL", "BERTH", "VESSEL", "VOYAGE", "PORTOFLOADING",
+    "PORTOFDISCHARGE", "TRANSHIPMENT", "GATEWAY", "FEEDER",
+    # Regulatory
+    "SOLAS", "IMDG", "HAZMAT", "DANGEROUS", "PHYTOSANITARY",
+    "QUARANTINE", "INSPECTION", "ANTIDUMPING",
+    # Finance & Insurance
+    "INSURANCE", "PREMIUM", "SURVEY", "CLAUSES", "AVERAGE",
+    "SUBROGATION", "DEDUCTIBLE",
+    # Short codes
+    "CFS", "ICD", "CY", "POL", "POD", "ETA", "ETD",
+    "FCL", "LCL", "MTO", "NVOCC", "BL", "DO", "NOC",
+    "VGM", "SOC", "COC", "IGM", "EGM",
+]
 
-        if not failed:
-            return path
-    return None
+# Words selected each week (admin sets this; default = auto-pick 20)
+DEFAULT_WORDS_PER_PUZZLE = 20
 
+# SQLite DB path (relative to app.py)
+DB_PATH = "fun_friday.db"
 
-def generate_grid(words, size=GRID_SIZE):
-    words = [w.upper().replace(" ", "") for w in words]
-    words.sort(key=len, reverse=True)
-
-    grid     = [["" for _ in range(size)] for _ in range(size)]
-    occupied = [[False] * size for _ in range(size)]
-    placements = {}
-
-    for word in words:
-        path = _place_word_snake(word, grid, occupied, size)
-        if path:
-            for i, (r, c) in enumerate(path):
-                grid[r][c] = word[i]
-                occupied[r][c] = True
-            placements[word] = path
-
-    # Fill empties with short filler snakes
-    filler_pool = [
-        "PORT","DOCK","SHIP","LOAD","HOLD","SEAL","DECK","HULL",
-        "TIDE","WAVE","BUOY","KEEL","HELM","ROPE","HOOK","BOLT",
-        "GATE","RAMP","TANK","DRUM","SACK","BALE","COIL",
-        "BOX","BIN","BAY","TON","TEU","FCL","LCL","CFS",
-        "ETA","ETD","POL","POD","BL","DO","VGM","NOC","IGM",
-        "CAP","LOT","AWB","COD","SKU","PKG","MTO","CTO",
-    ]
-    random.shuffle(filler_pool)
-
-    for attempt in range(800):
-        empty = [(r, c) for r in range(size) for c in range(size) if not occupied[r][c]]
-        if not empty:
-            break
-        if not filler_pool:
-            break
-        word = filler_pool.pop()
-        if len(word) > len(empty):
-            continue
-        path = _place_word_snake(word, grid, occupied, size, attempts=200)
-        if path:
-            for i, (r, c) in enumerate(path):
-                grid[r][c] = word[i]
-                occupied[r][c] = True
-            placements[f"__{word}_{attempt}"] = path
-
-    # Any still-empty cells — single random letter (shouldn't happen often)
-    for r in range(size):
-        for c in range(size):
-            if not occupied[r][c]:
-                grid[r][c] = random.choice(ALPHABET)
-
-    return grid, placements
-
-
-def real_placements(placements):
-    return {k: v for k, v in placements.items() if not k.startswith("__")}
-
-def grid_to_json(grid):       return json.dumps(grid)
-def placements_to_json(p):    return json.dumps(p)
-def json_to_grid(s):          return json.loads(s)
-def json_to_placements(s):    return json.loads(s)
-
-def validate_selection(selected_cells, placements):
-    sel     = [list(c) for c in selected_cells]
-    sel_rev = sel[::-1]
-    for word, cells in placements.items():
-        if word.startswith("__"):
-            continue
-        if sel == cells or sel_rev == cells:
-            return word
-    return None
+APP_TITLE  = "🚢 Fun Friday Puzzle"
+ORG_NAME   = "Matchlog"
+LOGO_EMOJI = "⚓"
