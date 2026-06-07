@@ -60,7 +60,7 @@ MASTER_WORD_POOL = [
 ]
 
 # Words selected each week (admin sets this; default = auto-pick 20)
-DEFAULT_WORDS_PER_PUZZLE = 20
+DEFAULT_WORDS_PER_PUZZLE = 10
 
 # SQLite DB path (relative to app.py)
 DB_PATH = "fun_friday.db"
