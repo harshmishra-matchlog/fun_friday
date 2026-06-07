@@ -1,167 +1,95 @@
 # ============================================================
-# app.py — Fun Friday Word-Search Puzzle  🚢
+# app.py — Fun Friday Word-Search Puzzle  🚢  (Strands-style)
 # Run:  streamlit run app.py
 # ============================================================
 import streamlit as st
-import json
-import time
-import random
+import streamlit.components.v1 as components
+import json, time, random
 from datetime import datetime, date, timedelta
 import pytz
 
 import database as db
 import admin as adm
 from config import (
-    ADMIN_EMAILS, ADMIN_PASSWORD, PUZZLE_DAY, PUZZLE_START_HOUR, PUZZLE_END_HOUR,
+    ADMIN_EMAILS, ADMIN_PASSWORD, PUZZLE_DAY,
+    PUZZLE_START_HOUR, PUZZLE_END_HOUR,
     PUZZLE_DURATION_MINUTES, GRID_SIZE, APP_TITLE, ORG_NAME, LOGO_EMOJI,
 )
-from puzzle_engine import json_to_grid, json_to_placements, validate_selection
+from puzzle_engine import json_to_grid, json_to_placements, real_placements, validate_selection
 
-# ── Page config ───────────────────────────────────────────────
 st.set_page_config(
     page_title=f"{APP_TITLE} | {ORG_NAME}",
-    page_icon="🚢",
-    layout="wide",
+    page_icon="🚢", layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-# ── IST timezone ──────────────────────────────────────────────
 IST = pytz.timezone("Asia/Kolkata")
-
-# ── DB init ───────────────────────────────────────────────────
 db.init_db()
 
-# ── Styles ────────────────────────────────────────────────────
+# ── Global styles (login / leaderboard / panels) ──────────────
 st.markdown("""
 <style>
-/* ── Global ── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Mono:wght@700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600&display=swap');
 
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+.stApp { background: #f0f4ff; color: #1a1a2e; }
+section[data-testid="stSidebar"] { background: #fff; }
 
-/* White background, dark text everywhere */
-.stApp { background: #f5f7fa; color: #1a1a2e; }
-section[data-testid="stSidebar"] { background: #ffffff; }
-
-/* ── Header banner ── */
 .header-banner {
-    background: linear-gradient(135deg, #0d47a1 0%, #1565c0 50%, #0d47a1 100%);
-    border-radius: 16px;
-    padding: 24px 32px;
-    margin-bottom: 24px;
-    text-align: center;
-    box-shadow: 0 4px 20px rgba(13,71,161,0.25);
+    background: linear-gradient(135deg, #1a237e 0%, #1565c0 60%, #0288d1 100%);
+    border-radius: 20px; padding: 28px 32px;
+    margin-bottom: 20px; text-align: center;
+    box-shadow: 0 8px 32px rgba(21,101,192,0.25);
 }
-.header-banner h1 { font-size: 2.4rem; margin: 0; color: #ffffff; }
-.header-banner p  { color: #bbdefb; margin: 4px 0 0; font-size: 1rem; }
-
-/* ── Countdown pill ── */
-.countdown-pill {
-    display: inline-block;
-    background: #e53935;
-    color: #ffffff;
-    font-family: 'Space Mono', monospace;
-    font-size: 1.6rem;
-    padding: 8px 28px;
-    border-radius: 50px;
-    letter-spacing: 3px;
-    margin: 8px 0;
+.header-banner h1 {
+    font-family: 'Nunito', sans-serif;
+    font-size: 2.6rem; margin: 0; color: #fff;
+    letter-spacing: -0.5px;
 }
+.header-banner p { color: #bbdefb; margin: 6px 0 0; font-size: 1rem; }
 
-/* ── Grid container ── */
-.grid-container {
-    display: grid;
-    gap: 4px;
-    user-select: none;
-    width: fit-content;
-    margin: 0 auto;
-}
-
-/* ── Individual cell ── */
-.cell {
-    width: 46px; height: 46px;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Space Mono', monospace;
-    font-size: 1.05rem; font-weight: 700;
-    border-radius: 8px;
-    cursor: pointer;
-    border: 2px solid #cfd8dc;
-    background: #ffffff;
-    color: #1a1a2e;
-    transition: all 0.12s ease;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
-.cell:hover    { background: #e3f2fd; border-color: #1565c0; color: #0d47a1; transform: scale(1.08); }
-.cell.active   { background: #1565c0; border-color: #0d47a1; color: #ffffff; transform: scale(1.1); }
-.cell.found    { background: #2e7d32; border-color: #1b5e20; color: #ffffff; }
-.cell.found-alt { background: #6a1b9a; border-color: #4a148c; color: #ffffff; }
-
-/* ── Word chips ── */
-.word-chip {
-    display: inline-block;
-    padding: 5px 14px;
-    border-radius: 20px;
-    font-size: 0.8rem; font-weight: 600;
-    margin: 4px;
-    letter-spacing: 0.5px;
-    border: 1px solid;
-}
-.chip-found   { background: #e8f5e9; border-color: #2e7d32; color: #1b5e20; }
-.chip-pending { background: #f5f5f5; border-color: #bdbdbd; color: #555555; }
-
-/* ── Leaderboard ── */
 .lb-card {
-    background: #ffffff;
-    border: 1px solid #e0e7ef;
-    border-radius: 12px;
-    padding: 14px 20px;
+    background: #fff; border: 1px solid #e0e7ef;
+    border-radius: 14px; padding: 14px 20px;
     margin-bottom: 10px;
     display: flex; align-items: center; gap: 16px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 .lb-rank  { font-size: 1.5rem; width: 40px; text-align: center; }
 .lb-name  { font-weight: 700; font-size: 1rem; color: #1a1a2e; }
-.lb-dept  { font-size: 0.75rem; color: #666666; }
+.lb-dept  { font-size: 0.75rem; color: #666; }
 .lb-score { margin-left: auto; text-align: right; }
-.lb-score .num { font-family: 'Space Mono', monospace; font-size: 1.1rem; color: #0d47a1; }
-.lb-score .tim { font-size: 0.75rem; color: #555555; }
+.lb-score .num { font-family: 'Nunito', sans-serif; font-size: 1.15rem; color: #1565c0; font-weight: 800; }
+.lb-score .tim { font-size: 0.75rem; color: #555; }
 
-/* ── Status boxes ── */
 .closed-box {
     background: #fff8e1; border: 1px solid #f9a825;
-    border-radius: 12px; padding: 32px; text-align: center; color: #e65100;
+    border-radius: 14px; padding: 36px; text-align: center; color: #e65100;
 }
 .winner-box {
     background: linear-gradient(135deg, #e8f5e9, #f1f8e9);
-    border: 2px solid #2e7d32; border-radius: 16px;
-    padding: 28px; text-align: center; color: #1b5e20;
+    border: 2px solid #2e7d32; border-radius: 18px;
+    padding: 32px; text-align: center; color: #1b5e20;
     animation: glow 2s ease-in-out infinite alternate;
 }
 @keyframes glow {
-    from { box-shadow: 0 0 10px rgba(46,125,50,0.2); }
-    to   { box-shadow: 0 0 28px rgba(46,125,50,0.5); }
+    from { box-shadow: 0 0 12px rgba(46,125,50,0.2); }
+    to   { box-shadow: 0 0 32px rgba(46,125,50,0.45); }
 }
-
-/* ── Streamlit native element overrides ── */
 .stButton > button {
-    background: #0d47a1; color: #ffffff; border: none;
-    border-radius: 8px; padding: 10px 24px;
-    font-weight: 600; transition: background 0.2s;
+    background: #1565c0; color: #fff; border: none;
+    border-radius: 10px; padding: 10px 24px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 1rem; font-weight: 800;
+    transition: background 0.2s, transform 0.1s;
 }
-.stButton > button:hover { background: #1565c0; }
-
-/* Input boxes */
+.stButton > button:hover { background: #1a237e; transform: translateY(-1px); }
 .stTextInput > div > div > input {
-    background: #ffffff; color: #1a1a2e;
-    border: 1px solid #cfd8dc; border-radius: 8px;
+    background: #fff; color: #1a1a2e;
+    border: 1.5px solid #c5cae9; border-radius: 10px;
+    font-size: 1rem; padding: 10px 14px;
 }
-.stSelectbox > div > div {
-    background: #ffffff; color: #1a1a2e;
-}
-
-/* Markdown text */
 .stMarkdown p, .stMarkdown li { color: #1a1a2e; }
-
 div[data-testid="stForm"] { border: none; padding: 0; }
 </style>
 """, unsafe_allow_html=True)
@@ -170,51 +98,38 @@ div[data-testid="stForm"] { border: none; padding: 0; }
 # ═══════════════════════════════════════════════════════════════
 # Helpers
 # ═══════════════════════════════════════════════════════════════
-
-def now_ist() -> datetime:
+def now_ist():
     return datetime.now(IST)
 
-
-def this_friday_date() -> date:
+def this_friday_date():
     today = date.today()
     days_ahead = (4 - today.weekday()) % 7
     return today + timedelta(days=days_ahead)
 
-
-def puzzle_is_open() -> bool:
+def puzzle_is_open():
     now = now_ist()
     if now.weekday() != PUZZLE_DAY:
         return False
     return PUZZLE_START_HOUR <= now.hour < PUZZLE_END_HOUR
 
-
-def time_until_next_open() -> str:
+def time_until_next_open():
     now = now_ist()
     days_until = (4 - now.weekday()) % 7
     if days_until == 0 and now.hour >= PUZZLE_END_HOUR:
         days_until = 7
-    next_open = now.replace(
-        hour=PUZZLE_START_HOUR, minute=0, second=0, microsecond=0
-    ) + timedelta(days=days_until)
+    next_open = now.replace(hour=PUZZLE_START_HOUR, minute=0, second=0, microsecond=0) + timedelta(days=days_until)
     delta = next_open - now
     h, rem = divmod(int(delta.total_seconds()), 3600)
-    m, s   = divmod(rem, 60)
-    return f"{delta.days}d {h % 24:02d}h {m:02d}m" if delta.days else f"{h:02d}h {m:02d}m {s:02d}s"
+    m, s = divmod(rem, 60)
+    return f"{delta.days}d {h%24:02d}h {m:02d}m" if delta.days else f"{h:02d}h {m:02d}m {s:02d}s"
 
-
-def fmt_time(seconds: int) -> str:
+def fmt_time(seconds):
     m, s = divmod(seconds, 60)
     return f"{m}m {s:02d}s"
 
-
-FOUND_COLORS = [
-    "found", "found-alt",
-]
-
 RANK_EMOJI = {1: "🥇", 2: "🥈", 3: "🥉"}
 
-
-def _render_leaderboard(lb: list[dict]):
+def _render_leaderboard(lb):
     if not lb:
         st.info("No submissions yet. Be the first!")
         return
@@ -237,31 +152,20 @@ def _render_leaderboard(lb: list[dict]):
 
 
 # ═══════════════════════════════════════════════════════════════
-# Session state bootstrap
+# Session state
 # ═══════════════════════════════════════════════════════════════
-
 def init_state():
     defaults = {
-        "logged_in":        False,
-        "player_name":      "",
-        "player_email":     "",
-        "player_dept":      "",
-        "game_started":     False,
-        "session_id":       None,
-        "puzzle_data":      None,
-        "grid":             None,
-        "placements":       None,
-        "found_words":      [],
-        "selected_cells":   [],
-        "cell_colors":      {},
-        "start_epoch":      None,
-        "submitted":        False,
-        "admin_mode":       False,
-        "admin_pw_pending": False,   # waiting for admin password
-        "admin_pw_error":   "",
-        "admin_pw_name":    "",
-        "admin_pw_email":   "",
-        "admin_pw_dept":    "",
+        "logged_in": False, "player_name": "", "player_email": "",
+        "player_dept": "", "game_started": False, "session_id": None,
+        "puzzle_data": None, "grid": None, "placements": None,
+        "found_words": [], "submitted": False, "admin_mode": False,
+        "hints_used": 0, "start_epoch": None,
+        "admin_pw_pending": False, "admin_pw_error": "",
+        "admin_pw_name": "", "admin_pw_email": "", "admin_pw_dept": "",
+        # JS → Python communication
+        "js_found_word": None,
+        "js_hints_used": 0,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -274,7 +178,6 @@ S = st.session_state
 # ═══════════════════════════════════════════════════════════════
 # Header
 # ═══════════════════════════════════════════════════════════════
-
 st.markdown(f"""
 <div class="header-banner">
   <h1>{LOGO_EMOJI} {APP_TITLE}</h1>
@@ -284,128 +187,99 @@ st.markdown(f"""
 
 
 # ═══════════════════════════════════════════════════════════════
-# Admin shortcut in sidebar
+# Sidebar admin
 # ═══════════════════════════════════════════════════════════════
-
 with st.sidebar:
     st.markdown("### ⚙️ Admin Panel")
-    if S.logged_in and S.player_email in ADMIN_EMAILS:
+    if S.logged_in and S.player_email in [e.lower() for e in ADMIN_EMAILS]:
         if st.button("🔐 Open Admin Panel"):
             S.admin_mode = True
     else:
         st.info("Admin access for authorised emails only.")
 
-
-# ═══════════════════════════════════════════════════════════════
-# Admin mode
-# ═══════════════════════════════════════════════════════════════
-
-if S.admin_mode and S.logged_in and S.player_email in ADMIN_EMAILS:
+if S.admin_mode and S.logged_in and S.player_email in [e.lower() for e in ADMIN_EMAILS]:
     adm.render_admin(S.player_email)
     st.stop()
 
 
 # ═══════════════════════════════════════════════════════════════
-# LOGIN  (password gate for admin emails only)
+# LOGIN
 # ═══════════════════════════════════════════════════════════════
-
 if not S.logged_in:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-
-        # ── STEP 2: Admin password screen ────────────────────
         if S.admin_pw_pending:
             st.markdown("### 🔐 Admin Verification")
-            st.info(f"**{S.admin_pw_email}** is an admin account. Enter the admin password to continue.")
-
+            st.info(f"**{S.admin_pw_email}** is an admin account. Enter the admin password.")
             pw_input = st.text_input("Admin Password", type="password", placeholder="••••••••••••")
-
             if S.admin_pw_error:
                 st.error(S.admin_pw_error)
-
-            vcol1, vcol2 = st.columns(2)
-            with vcol1:
+            v1, v2 = st.columns(2)
+            with v1:
                 if st.button("✅ Verify", use_container_width=True):
                     if pw_input == ADMIN_PASSWORD:
-                        S.logged_in         = True
-                        S.player_name       = S.admin_pw_name
-                        S.player_email      = S.admin_pw_email
-                        S.player_dept       = S.admin_pw_dept
-                        S.admin_mode        = True
-                        S.admin_pw_pending  = False
-                        S.admin_pw_error    = ""
+                        S.logged_in = True
+                        S.player_name = S.admin_pw_name
+                        S.player_email = S.admin_pw_email
+                        S.player_dept = S.admin_pw_dept
+                        S.admin_mode = True
+                        S.admin_pw_pending = False
+                        S.admin_pw_error = ""
                         st.rerun()
                     else:
-                        S.admin_pw_error = "❌ Wrong password. Try again."
+                        S.admin_pw_error = "❌ Wrong password."
                         st.rerun()
-
-            with vcol2:
+            with v2:
                 if st.button("← Back", use_container_width=True):
                     S.admin_pw_pending = False
-                    S.admin_pw_error   = ""
+                    S.admin_pw_error = ""
                     st.rerun()
-
-        # ── STEP 1: Name / email form ─────────────────────────
         else:
             st.markdown("### 👤 Enter your details to play")
             name  = st.text_input("Your Name *", placeholder="e.g. Utkarsh Kulshrestha")
             email = st.text_input("Work Email *", placeholder="you@matchlog.delivery")
-            dept  = st.selectbox("Department", [
-                "Operations", "Sales", "Finance", "Tech", "HR", "Management", "Other"
-            ])
-
+            dept  = st.selectbox("Department", ["Operations","Sales","Finance","Tech","HR","Management","Other"])
             if st.button("🚀 Let's Play!", use_container_width=True):
                 name  = name.strip()
                 email = email.strip().lower()
-
                 if not name or not email:
                     st.error("Please fill in your name and email.")
                 elif "@" not in email:
                     st.error("Enter a valid email address.")
                 elif email in [e.lower() for e in ADMIN_EMAILS]:
-                    # Admin → ask for password first
                     S.admin_pw_pending = True
-                    S.admin_pw_name    = name
-                    S.admin_pw_email   = email
-                    S.admin_pw_dept    = dept
-                    S.admin_pw_error   = ""
+                    S.admin_pw_name = name
+                    S.admin_pw_email = email
+                    S.admin_pw_dept = dept
+                    S.admin_pw_error = ""
                     st.rerun()
                 else:
-                    # Regular user → straight in
-                    S.logged_in    = True
-                    S.player_name  = name
+                    S.logged_in = True
+                    S.player_name = name
                     S.player_email = email
-                    S.player_dept  = dept
-                    S.admin_mode   = False
+                    S.player_dept = dept
                     st.rerun()
-
     st.stop()
 
 
 # ═══════════════════════════════════════════════════════════════
 # PUZZLE WINDOW CHECK
 # ═══════════════════════════════════════════════════════════════
-
-is_open = puzzle_is_open()
-
-# Admins can always play / preview
-if not is_open and S.player_email not in ADMIN_EMAILS:
+if not puzzle_is_open() and S.player_email not in [e.lower() for e in ADMIN_EMAILS]:
     st.markdown(f"""
     <div class="closed-box">
       <h2>🔒 Puzzle is Closed</h2>
       <p>Fun Friday puzzle opens every <strong>Friday 11:00 AM – 3:00 PM IST</strong>.</p>
       <p style="font-size:1.3rem; margin-top:12px;">
-        ⏳ Next session opens in: <strong>{time_until_next_open()}</strong>
+        ⏳ Opens in: <strong>{time_until_next_open()}</strong>
       </p>
     </div>
     """, unsafe_allow_html=True)
-
-    # Show last week's leaderboard
     st.markdown("---")
     st.markdown("## 🏆 Last Week's Winners")
-    all_puzzles = db.get_all_puzzles()
-    if all_puzzles:
-        lb = db.get_leaderboard(all_puzzles[0]["id"])
+    all_p = db.get_all_puzzles()
+    if all_p:
+        lb = db.get_leaderboard(all_p[0]["id"])
         _render_leaderboard(lb) if lb else st.info("No scores yet.")
     st.stop()
 
@@ -413,47 +287,55 @@ if not is_open and S.player_email not in ADMIN_EMAILS:
 # ═══════════════════════════════════════════════════════════════
 # Load puzzle
 # ═══════════════════════════════════════════════════════════════
-
 friday_str = this_friday_date().isoformat()
 puzzle     = db.get_or_create_puzzle(friday_str)
 
 if S.puzzle_data is None or S.puzzle_data["id"] != puzzle["id"]:
-    S.puzzle_data  = puzzle
-    S.grid         = json_to_grid(puzzle["grid"])
-    S.placements   = json_to_placements(puzzle["placements"])
-    S.found_words  = []
-    S.selected_cells = []
-    S.cell_colors  = {}
-
-
-# ═══════════════════════════════════════════════════════════════
-# Already submitted?
-# ═══════════════════════════════════════════════════════════════
+    S.puzzle_data = puzzle
+    S.grid        = json_to_grid(puzzle["grid"])
+    S.placements  = real_placements(json_to_placements(puzzle["placements"]))
+    S.found_words = []
+    S.hints_used  = 0
 
 if db.already_played(puzzle["id"], S.player_email) and not S.submitted:
     S.submitted = True
 
 
 # ═══════════════════════════════════════════════════════════════
-# Game not started yet
+# Welcome / Start screen
 # ═══════════════════════════════════════════════════════════════
-
 if not S.game_started and not S.submitted:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.markdown(f"### 👋 Welcome, **{S.player_name}**!")
+        total_words = len(S.placements)
         st.markdown(f"""
-        **How to play:**
-        - Find hidden logistics words in the grid
-        - Click letters to select — words can be horizontal, vertical, or diagonal
-        - You have **{PUZZLE_DURATION_MINUTES} minutes**
-        - Most words + least time = 🏆 Winner!
-        """)
-        st.warning("⚠️ Once you click Start, your timer begins immediately!")
+        <div style="background:#fff; border-radius:18px; padding:32px;
+                    box-shadow:0 4px 24px rgba(21,101,192,0.12); text-align:center;">
+          <div style="font-size:3rem;">🚢</div>
+          <h2 style="font-family:'Nunito',sans-serif; color:#1a237e; margin:8px 0;">
+            Welcome, {S.player_name}!
+          </h2>
+          <p style="color:#555; font-size:1rem; margin-bottom:20px;">
+            Find all <strong>{total_words} hidden logistics words</strong> in the grid.<br>
+            Drag across letters to select. Words go in any direction.
+          </p>
+          <div style="display:flex; justify-content:center; gap:20px; flex-wrap:wrap; margin-bottom:20px;">
+            <div style="background:#e3f2fd; border-radius:12px; padding:12px 20px;">
+              ⏱ <strong>{PUZZLE_DURATION_MINUTES} min</strong> timer
+            </div>
+            <div style="background:#e8f5e9; border-radius:12px; padding:12px 20px;">
+              💡 <strong>3 hints</strong> available
+            </div>
+            <div style="background:#fff8e1; border-radius:12px; padding:12px 20px;">
+              🏆 Most words + least time wins
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.warning("⚠️ Timer starts the moment you click Start!")
         if st.button("▶️ Start Puzzle!", use_container_width=True):
-            sid = db.create_session(
-                puzzle["id"], S.player_name, S.player_email, S.player_dept
-            )
+            sid = db.create_session(puzzle["id"], S.player_name, S.player_email, S.player_dept)
             S.session_id  = sid
             S.start_epoch = time.time()
             S.game_started = True
@@ -462,167 +344,572 @@ if not S.game_started and not S.submitted:
 
 
 # ═══════════════════════════════════════════════════════════════
-# SUBMITTED VIEW
+# SUBMITTED
 # ═══════════════════════════════════════════════════════════════
-
 if S.submitted:
+    total = len(S.placements)
     st.markdown(f"""
     <div class="winner-box">
-      <h2>🎉 Well done, {S.player_name}!</h2>
-      <p>You found <strong>{len(S.found_words)}</strong> words out of {len(S.placements)}.</p>
+      <div style="font-size:3rem;">🎉</div>
+      <h2 style="font-family:'Nunito',sans-serif;">Well done, {S.player_name}!</h2>
+      <p style="font-size:1.2rem;">You found <strong>{len(S.found_words)}</strong> out of <strong>{total}</strong> words.</p>
     </div>
     """, unsafe_allow_html=True)
-
     st.markdown("---")
     st.markdown("## 🏆 Live Leaderboard")
-    lb = db.get_leaderboard(puzzle["id"])
-    _render_leaderboard(lb)
+    _render_leaderboard(db.get_leaderboard(puzzle["id"]))
     st.stop()
 
 
 # ═══════════════════════════════════════════════════════════════
-# ACTIVE GAME
+# ACTIVE GAME — Timer check
 # ═══════════════════════════════════════════════════════════════
-
-# ── Timer check ───────────────────────────────────────────────
-elapsed     = int(time.time() - S.start_epoch)
-remaining   = max(0, PUZZLE_DURATION_MINUTES * 60 - elapsed)
+elapsed   = int(time.time() - S.start_epoch)
+remaining = max(0, PUZZLE_DURATION_MINUTES * 60 - elapsed)
 
 if remaining == 0:
     db.submit_session(S.session_id, S.found_words)
     S.submitted = True
     st.rerun()
 
-# ── Layout: puzzle left | info right ──────────────────────────
-left, right = st.columns([3, 1.4], gap="large")
-
-# ────────────────────────────────────────────────────────────
-# RIGHT PANEL
-# ────────────────────────────────────────────────────────────
-with right:
-
-    # Countdown
-    mins, secs = divmod(remaining, 60)
-    color = "#e53935" if remaining < 120 else "#0d47a1"
-    st.markdown(f"""
-    <div style="text-align:center; margin-bottom:16px;">
-      <div class="countdown-pill" style="background:{color};">
-        {mins:02d}:{secs:02d}
-      </div>
-      <div style="color:#555555; font-size:0.8rem;">time remaining</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Score
-    total = len(json.loads(puzzle["words"]))
-    st.markdown(f"""
-    <div style="text-align:center; background:#e3f2fd; border:1px solid #90caf9;
-                border-radius:12px; padding:14px; margin-bottom:16px;">
-      <div style="font-size:2rem; font-weight:700; color:#0d47a1;">{len(S.found_words)}</div>
-      <div style="color:#555555; font-size:0.8rem;">of {total} words found</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Word list
-    st.markdown("**📋 Words to Find:**")
-    words_html = ""
-    for w in json.loads(puzzle["words"]):
-        if w in S.found_words:
-            words_html += f'<span class="word-chip chip-found">✓ {w}</span>'
-        else:
-            words_html += f'<span class="word-chip chip-pending">{w}</span>'
-    st.markdown(words_html, unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # Submit early
-    if st.button("✅ Submit Now", use_container_width=True):
-        db.submit_session(S.session_id, S.found_words)
-        S.submitted = True
-        st.rerun()
-
-    st.markdown("---")
-    st.markdown("## 🏆 Leaderboard")
-    lb = db.get_leaderboard(puzzle["id"])
-    _render_leaderboard(lb)
-
-
-# ────────────────────────────────────────────────────────────
-# LEFT PANEL — Interactive Grid
-# ────────────────────────────────────────────────────────────
-with left:
-    st.markdown(f"#### 🔍 Find the hidden words — {S.player_name}")
-
-    # ── Build the interactive grid with buttons ───────────────
-    # We use a session-state click mechanism:
-    # Each cell is a small button labelled with the letter.
-    # Selected cells are tracked in S.selected_cells.
-
-    grid      = S.grid
-    n         = len(grid)
-    cell_cols = st.columns(n, gap="small")
-
-    for c in range(n):
-        with cell_cols[c]:
-            for r in range(n):
-                letter  = grid[r][c]
-                cell_id = (r, c)
-                css     = S.cell_colors.get(cell_id, "")
-
-                # Style override for selection
-                if cell_id in S.selected_cells:
-                    btn_style = "background:#1565c0; color:#fff; border:2px solid #42a5f5;"
-                elif css == "found":
-                    btn_style = "background:#1b5e20; color:#a5d6a7; border:2px solid #66bb6a;"
-                elif css == "found-alt":
-                    btn_style = "background:#4a148c; color:#e1bee7; border:2px solid #ab47bc;"
-                else:
-                    btn_style = ""
-
-                if st.button(
-                    letter,
-                    key=f"cell_{r}_{c}",
-                    help=f"Row {r+1}, Col {c+1}",
-                ):
-                    # ── Click logic ───────────────────────────
-                    if cell_id not in S.selected_cells:
-                        S.selected_cells.append(cell_id)
-                    else:
-                        # Deselect if clicked again
-                        S.selected_cells.remove(cell_id)
-
-                    # Try to match a word whenever ≥2 cells selected
-                    if len(S.selected_cells) >= 2:
-                        matched = validate_selection(S.selected_cells, S.placements)
-                        if matched and matched not in S.found_words:
-                            S.found_words.append(matched)
-                            db.update_found_words(S.session_id, S.found_words)
-                            # Colour all cells of the found word
-                            color_cls = FOUND_COLORS[len(S.found_words) % 2]
-                            for cell in S.placements[matched]:
-                                S.cell_colors[tuple(cell)] = color_cls
-                            S.selected_cells = []
-                            st.balloons()
-                        elif len(S.selected_cells) > GRID_SIZE:
-                            # Too many selected without match — reset
-                            S.selected_cells = []
-
-                    st.rerun()
-
-    # ── Helper message ────────────────────────────────────────
-    if S.selected_cells:
-        sel_letters = "".join(grid[r][c] for r, c in S.selected_cells)
-        st.markdown(
-            f"**Selected:** `{sel_letters}` — "
-            f"click the last letter again to deselect, or keep selecting to form a word.",
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            "_Click letters in order to spell a word. "
-            "Words can go in any direction!_"
-        )
-
-    # Auto-refresh every second for the countdown
-    time.sleep(1)
+# ── Handle word found signal from JS (via query params) ───────
+qp = st.query_params
+if "found" in qp:
+    word = qp["found"]
+    if word in S.placements and word not in S.found_words:
+        S.found_words.append(word)
+        db.update_found_words(S.session_id, S.found_words)
+    st.query_params.clear()
     st.rerun()
+
+if "submit" in qp:
+    db.submit_session(S.session_id, S.found_words)
+    S.submitted = True
+    st.query_params.clear()
+    st.rerun()
+
+if "hints" in qp:
+    try:
+        S.hints_used = int(qp["hints"])
+    except:
+        pass
+    st.query_params.clear()
+
+# ═══════════════════════════════════════════════════════════════
+# BUILD THE GAME HTML COMPONENT
+# ═══════════════════════════════════════════════════════════════
+grid_data       = S.grid
+placements_data = S.placements
+found_words     = S.found_words
+total_words     = len(placements_data)
+hints_remaining = max(0, 3 - S.hints_used)
+
+mins, secs = divmod(remaining, 60)
+
+COLORS = [
+    "#1565c0","#2e7d32","#6a1b9a","#c62828",
+    "#00695c","#e65100","#4527a0","#37474f",
+    "#558b2f","#0277bd","#6d4c41","#ad1457",
+]
+
+word_color_map = {}
+for i, w in enumerate(sorted(placements_data.keys())):
+    word_color_map[w] = COLORS[i % len(COLORS)]
+
+for fw in found_words:
+    word_color_map[fw] = word_color_map.get(fw, "#2e7d32")
+
+placements_js   = json.dumps(placements_data)
+found_words_js  = json.dumps(found_words)
+color_map_js    = json.dumps(word_color_map)
+grid_js         = json.dumps(grid_data)
+
+GAME_HTML = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Space+Grotesk:wght@500;700&display=swap');
+
+  * {{ box-sizing: border-box; margin: 0; padding: 0; user-select: none; }}
+  body {{ background: transparent; font-family: 'Space Grotesk', sans-serif; }}
+
+  #game-wrap {{
+    display: flex; gap: 20px; align-items: flex-start;
+    padding: 4px;
+  }}
+
+  /* ── Grid ── */
+  #grid-panel {{ flex: 1; min-width: 0; }}
+
+  #grid {{
+    display: inline-grid;
+    grid-template-columns: repeat({GRID_SIZE}, 1fr);
+    gap: 5px;
+    background: #fff;
+    border-radius: 18px;
+    padding: 14px;
+    box-shadow: 0 4px 24px rgba(21,101,192,0.13);
+    width: 100%;
+    max-width: 560px;
+  }}
+
+  .cell {{
+    aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Nunito', sans-serif;
+    font-size: clamp(0.7rem, 1.8vw, 1.1rem);
+    font-weight: 900;
+    border-radius: 10px;
+    cursor: pointer;
+    background: #f0f4ff;
+    color: #1a237e;
+    border: 2px solid transparent;
+    transition: background 0.12s, transform 0.08s, border-color 0.12s;
+    -webkit-tap-highlight-color: transparent;
+  }}
+  .cell:hover {{ background: #e3eaff; border-color: #7986cb; }}
+  .cell.selecting {{
+    background: #ffd54f !important;
+    color: #1a1a2e !important;
+    border-color: #ffa000 !important;
+    transform: scale(1.12);
+    z-index: 2;
+    box-shadow: 0 2px 8px rgba(255,160,0,0.35);
+  }}
+  .cell.found {{
+    color: #fff !important;
+    border-color: transparent !important;
+    transform: scale(1.0);
+  }}
+  .cell.shake {{
+    animation: shake 0.35s ease;
+  }}
+  @keyframes shake {{
+    0%,100% {{ transform: translateX(0); }}
+    20%      {{ transform: translateX(-5px); }}
+    40%      {{ transform: translateX(5px); }}
+    60%      {{ transform: translateX(-4px); }}
+    80%      {{ transform: translateX(4px); }}
+  }}
+
+  /* ── Right panel ── */
+  #right-panel {{
+    width: 220px; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 14px;
+  }}
+
+  .panel-card {{
+    background: #fff;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 2px 12px rgba(21,101,192,0.09);
+    text-align: center;
+  }}
+
+  /* Timer */
+  #timer-display {{
+    font-family: 'Nunito', sans-serif;
+    font-size: 2.6rem;
+    font-weight: 900;
+    color: #1565c0;
+    letter-spacing: 2px;
+    line-height: 1;
+  }}
+  #timer-display.warning {{ color: #e53935; animation: pulse 1s infinite; }}
+  @keyframes pulse {{ 0%,100% {{ opacity:1; }} 50% {{ opacity:0.6; }} }}
+  .timer-label {{ color: #888; font-size: 0.75rem; margin-top: 4px; }}
+
+  /* Score bubbles */
+  #score-row {{
+    display: flex; gap: 8px; justify-content: center; align-items: center;
+  }}
+  .score-bubble {{
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2.5px solid #c5cae9;
+    background: #f0f4ff;
+    transition: all 0.3s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.6rem;
+  }}
+  .score-bubble.done {{
+    border-color: transparent;
+    background: #1565c0;
+    transform: scale(1.15);
+  }}
+  #score-text {{
+    font-family: 'Nunito', sans-serif;
+    font-size: 1.1rem; font-weight: 800;
+    color: #1565c0; margin-top: 8px;
+  }}
+
+  /* Found words list */
+  #found-list {{ text-align: left; }}
+  .found-word-item {{
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.85rem; font-weight: 700;
+    padding: 5px 8px; border-radius: 8px;
+    margin-bottom: 4px;
+    color: #fff;
+    animation: popIn 0.3s cubic-bezier(.175,.885,.32,1.275);
+  }}
+  @keyframes popIn {{
+    from {{ transform: scale(0.5); opacity: 0; }}
+    to   {{ transform: scale(1);   opacity: 1; }}
+  }}
+
+  /* Hint button */
+  #hint-btn {{
+    width: 100%; padding: 10px;
+    background: linear-gradient(135deg, #7c4dff, #651fff);
+    color: #fff; border: none; border-radius: 12px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 1rem; font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(124,77,255,0.3);
+  }}
+  #hint-btn:hover {{ transform: translateY(-2px); box-shadow: 0 6px 16px rgba(124,77,255,0.4); }}
+  #hint-btn:disabled {{ background: #bdbdbd; box-shadow: none; transform: none; cursor: not-allowed; }}
+
+  /* Submit button */
+  #submit-btn {{
+    width: 100%; padding: 10px;
+    background: linear-gradient(135deg, #1565c0, #1a237e);
+    color: #fff; border: none; border-radius: 12px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 1rem; font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(21,101,192,0.3);
+  }}
+  #submit-btn:hover {{ transform: translateY(-2px); }}
+
+  /* Toast */
+  #toast {{
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: #1a237e; color: #fff;
+    padding: 12px 28px; border-radius: 50px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 1.1rem; font-weight: 800;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 999;
+    box-shadow: 0 8px 24px rgba(26,35,126,0.35);
+  }}
+  #toast.show {{ opacity: 1; }}
+</style>
+</head>
+<body>
+
+<div id="game-wrap">
+
+  <!-- LEFT: Grid -->
+  <div id="grid-panel">
+    <div id="grid"></div>
+  </div>
+
+  <!-- RIGHT: Info panel -->
+  <div id="right-panel">
+
+    <div class="panel-card">
+      <div id="timer-display">{mins:02d}:{secs:02d}</div>
+      <div class="timer-label">time remaining</div>
+    </div>
+
+    <div class="panel-card">
+      <div id="score-row"></div>
+      <div id="score-text">0 / {total_words} found</div>
+    </div>
+
+    <button id="hint-btn">💡 Hint ({hints_remaining} left)</button>
+
+    <div class="panel-card" id="found-list">
+      <div style="font-size:0.7rem;color:#999;margin-bottom:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Found Words</div>
+      <div id="found-words-container"></div>
+    </div>
+
+    <button id="submit-btn">✅ Submit</button>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const GRID        = {grid_js};
+const PLACEMENTS  = {placements_js};
+const COLOR_MAP   = {color_map_js};
+const GRID_SIZE   = {GRID_SIZE};
+const TOTAL_WORDS = {total_words};
+const MAX_HINTS   = 3;
+
+let foundWords   = {found_words_js};
+let hintsUsed    = {S.hints_used};
+let isSelecting  = false;
+let selectedCells = [];
+let hintActive   = false;
+let timerSecs    = {remaining};
+let timerInterval;
+
+// ── Build grid DOM ──────────────────────────────────────────
+const gridEl = document.getElementById('grid');
+
+for (let r = 0; r < GRID_SIZE; r++) {{
+  for (let c = 0; c < GRID_SIZE; c++) {{
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.textContent = GRID[r][c];
+    cell.dataset.r = r;
+    cell.dataset.c = c;
+    cell.id = `cell-${{r}}-${{c}}`;
+    gridEl.appendChild(cell);
+  }}
+}}
+
+// ── Colour already-found words ──────────────────────────────
+function colourFound() {{
+  // Reset
+  document.querySelectorAll('.cell').forEach(el => {{
+    el.classList.remove('found');
+    el.style.background = '';
+  }});
+  foundWords.forEach(word => {{
+    const cells = PLACEMENTS[word];
+    if (!cells) return;
+    const col = COLOR_MAP[word] || '#1565c0';
+    cells.forEach(([r,c]) => {{
+      const el = document.getElementById(`cell-${{r}}-${{c}}`);
+      if (el) {{
+        el.classList.add('found');
+        el.style.background = col;
+      }}
+    }});
+  }});
+}}
+
+// ── Score bubbles ───────────────────────────────────────────
+function updateScore() {{
+  const row = document.getElementById('score-row');
+  row.innerHTML = '';
+  for (let i = 0; i < TOTAL_WORDS; i++) {{
+    const b = document.createElement('div');
+    b.className = 'score-bubble' + (i < foundWords.length ? ' done' : '');
+    if (i < foundWords.length) {{
+      const w = foundWords[i];
+      b.style.background = COLOR_MAP[w] || '#1565c0';
+    }}
+    row.appendChild(b);
+  }}
+  document.getElementById('score-text').textContent =
+    `${{foundWords.length}} / ${{TOTAL_WORDS}} found`;
+}}
+
+// ── Found words list ────────────────────────────────────────
+function updateFoundList() {{
+  const container = document.getElementById('found-words-container');
+  container.innerHTML = '';
+  foundWords.forEach(w => {{
+    const div = document.createElement('div');
+    div.className = 'found-word-item';
+    div.style.background = COLOR_MAP[w] || '#1565c0';
+    div.innerHTML = `<span>✓</span><span>${{w}}</span>`;
+    container.appendChild(div);
+  }});
+}}
+
+// ── Toast ────────────────────────────────────────────────────
+function showToast(msg, duration=2000) {{
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}}
+
+// ── Drag selection ───────────────────────────────────────────
+function getCellAt(x, y) {{
+  const el = document.elementFromPoint(x, y);
+  if (el && el.classList.contains('cell')) return el;
+  return null;
+}}
+
+function cellKey(el) {{ return `${{el.dataset.r}},${{el.dataset.c}}`; }}
+
+function clearSelection() {{
+  selectedCells.forEach(el => el.classList.remove('selecting'));
+  selectedCells = [];
+}}
+
+function isContiguous(cells) {{
+  // Allow straight lines only (like NYT Strands)
+  if (cells.length < 2) return true;
+  const r0 = +cells[0].dataset.r, c0 = +cells[0].dataset.c;
+  const r1 = +cells[1].dataset.r, c1 = +cells[1].dataset.c;
+  const dr = Math.sign(r1 - r0), dc = Math.sign(c1 - c0);
+  for (let i = 1; i < cells.length; i++) {{
+    const pr = +cells[i-1].dataset.r, pc = +cells[i-1].dataset.c;
+    const cr = +cells[i].dataset.r,   cc = +cells[i].dataset.c;
+    if (cr - pr !== dr || cc - pc !== dc) return false;
+  }}
+  return true;
+}}
+
+function tryMatch() {{
+  const sel = selectedCells.map(el => [+el.dataset.r, +el.dataset.c]);
+  const selRev = [...sel].reverse();
+
+  for (const [word, cells] of Object.entries(PLACEMENTS)) {{
+    if (foundWords.includes(word)) continue;
+    const match = JSON.stringify(sel) === JSON.stringify(cells) ||
+                  JSON.stringify(selRev) === JSON.stringify(cells);
+    if (match) {{
+      foundWords.push(word);
+      colourFound();
+      updateScore();
+      updateFoundList();
+      showToast(`✓ ${{word}}!`);
+      // Signal Python
+      const url = new URL(window.location.href);
+      url.searchParams.set('found', word);
+      window.parent.location.href = url.toString();
+      return true;
+    }}
+  }}
+  // No match — shake
+  selectedCells.forEach(el => {{
+    el.classList.add('shake');
+    setTimeout(() => el.classList.remove('shake'), 400);
+  }});
+  return false;
+}}
+
+// Pointer events (works for mouse + touch)
+gridEl.addEventListener('pointerdown', e => {{
+  const cell = getCellAt(e.clientX, e.clientY);
+  if (!cell) return;
+  if (cell.classList.contains('found')) return;
+  e.preventDefault();
+  isSelecting = true;
+  clearSelection();
+  cell.classList.add('selecting');
+  selectedCells = [cell];
+  gridEl.setPointerCapture(e.pointerId);
+}});
+
+gridEl.addEventListener('pointermove', e => {{
+  if (!isSelecting) return;
+  const cell = getCellAt(e.clientX, e.clientY);
+  if (!cell || cell.classList.contains('found')) return;
+
+  // Check if already in selection
+  if (selectedCells.length > 1 && cell === selectedCells[selectedCells.length - 2]) {{
+    // Moving back — remove last
+    selectedCells[selectedCells.length - 1].classList.remove('selecting');
+    selectedCells.pop();
+    return;
+  }}
+  if (selectedCells.includes(cell)) return;
+
+  // Validate direction stays consistent
+  const testCells = [...selectedCells, cell];
+  if (!isContiguous(testCells)) return;
+
+  cell.classList.add('selecting');
+  selectedCells.push(cell);
+}});
+
+gridEl.addEventListener('pointerup', e => {{
+  if (!isSelecting) return;
+  isSelecting = false;
+  if (selectedCells.length >= 2) {{
+    const matched = tryMatch();
+    if (!matched) {{
+      setTimeout(clearSelection, 400);
+    }} else {{
+      clearSelection();
+    }}
+  }} else {{
+    clearSelection();
+  }}
+}});
+
+// ── Hint ─────────────────────────────────────────────────────
+document.getElementById('hint-btn').addEventListener('click', () => {{
+  if (hintsUsed >= MAX_HINTS) return;
+  if (hintActive) return;
+
+  const remaining = Object.keys(PLACEMENTS).filter(w => !foundWords.includes(w));
+  if (remaining.length === 0) return;
+
+  const word = remaining[Math.floor(Math.random() * remaining.length)];
+  const cells = PLACEMENTS[word];
+  const col   = COLOR_MAP[word] || '#7c4dff';
+
+  hintsUsed++;
+  hintActive = true;
+
+  // Update hint button
+  const hintBtn = document.getElementById('hint-btn');
+  const left = MAX_HINTS - hintsUsed;
+  hintBtn.textContent = `💡 Hint (${{left}} left)`;
+  if (hintsUsed >= MAX_HINTS) hintBtn.disabled = true;
+
+  // Flash cells
+  cells.forEach(([r, c]) => {{
+    const el = document.getElementById(`cell-${{r}}-${{c}}`);
+    if (!el) return;
+    const orig = el.style.background;
+    el.style.background = col;
+    el.style.opacity = '0.7';
+    setTimeout(() => {{
+      el.style.background = orig;
+      el.style.opacity = '1';
+    }}, 1800);
+  }});
+  showToast(`💡 Hint: look for a ${{word.length}}-letter word`, 2500);
+
+  setTimeout(() => {{ hintActive = false; }}, 2000);
+
+  // Sync hints to Python
+  const url = new URL(window.location.href);
+  url.searchParams.set('hints', hintsUsed);
+  window.parent.location.href = url.toString();
+}});
+
+// ── Submit ───────────────────────────────────────────────────
+document.getElementById('submit-btn').addEventListener('click', () => {{
+  if (!confirm('Submit your answers now?')) return;
+  const url = new URL(window.location.href);
+  url.searchParams.set('submit', '1');
+  window.parent.location.href = url.toString();
+}});
+
+// ── Timer ────────────────────────────────────────────────────
+function updateTimer() {{
+  if (timerSecs <= 0) {{
+    document.getElementById('timer-display').textContent = '00:00';
+    return;
+  }}
+  timerSecs--;
+  const m = Math.floor(timerSecs / 60).toString().padStart(2,'0');
+  const s = (timerSecs % 60).toString().padStart(2,'0');
+  const el = document.getElementById('timer-display');
+  el.textContent = `${{m}}:${{s}}`;
+  if (timerSecs < 120) el.classList.add('warning');
+  else el.classList.remove('warning');
+}}
+
+timerInterval = setInterval(updateTimer, 1000);
+
+// ── Init ─────────────────────────────────────────────────────
+colourFound();
+updateScore();
+updateFoundList();
+</script>
+</body>
+</html>
+"""
+
+components.html(GAME_HTML, height=700, scrolling=False)
