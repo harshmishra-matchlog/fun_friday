@@ -742,18 +742,11 @@ function clearSelection() {{
   selectedCells = [];
 }}
 
-function isContiguous(cells) {{
-  // Allow straight lines only (like NYT Strands)
-  if (cells.length < 2) return true;
-  const r0 = +cells[0].dataset.r, c0 = +cells[0].dataset.c;
-  const r1 = +cells[1].dataset.r, c1 = +cells[1].dataset.c;
-  const dr = Math.sign(r1 - r0), dc = Math.sign(c1 - c0);
-  for (let i = 1; i < cells.length; i++) {{
-    const pr = +cells[i-1].dataset.r, pc = +cells[i-1].dataset.c;
-    const cr = +cells[i].dataset.r,   cc = +cells[i].dataset.c;
-    if (cr - pr !== dr || cc - pc !== dc) return false;
-  }}
-  return true;
+function isAdjacent(a, b) {{
+  // True if b is any of the 8 neighbours of a
+  const dr = Math.abs(+a.dataset.r - +b.dataset.r);
+  const dc = Math.abs(+a.dataset.c - +b.dataset.c);
+  return dr <= 1 && dc <= 1 && (dr + dc > 0);
 }}
 
 function tryMatch() {{
@@ -803,18 +796,17 @@ gridEl.addEventListener('pointermove', e => {{
   const cell = getCellAt(e.clientX, e.clientY);
   if (!cell || cell.classList.contains('found')) return;
 
-  // Check if already in selection
+  // Moving back — undo last cell
   if (selectedCells.length > 1 && cell === selectedCells[selectedCells.length - 2]) {{
-    // Moving back — remove last
     selectedCells[selectedCells.length - 1].classList.remove('selecting');
     selectedCells.pop();
     return;
   }}
   if (selectedCells.includes(cell)) return;
 
-  // Validate direction stays consistent
-  const testCells = [...selectedCells, cell];
-  if (!isContiguous(testCells)) return;
+  // New cell must be adjacent (8-directional) to last selected
+  const last = selectedCells[selectedCells.length - 1];
+  if (!isAdjacent(last, cell)) return;
 
   cell.classList.add('selecting');
   selectedCells.push(cell);
