@@ -77,12 +77,9 @@ def get_or_create_puzzle(week_date: str | None = None) -> dict:
         week_date = _next_friday()
 
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM puzzles WHERE week_date = ?", (week_date,)
-        ).fetchone()
-
-        if row:
-            return dict(row)
+        # ── FORCE DELETE old puzzle so new snake-engine runs ──
+        # Remove this block after one successful deploy
+        conn.execute("DELETE FROM puzzles WHERE week_date = ?", (week_date,))
 
         # Check if admin uploaded custom words for this week
         admin_row = conn.execute(
