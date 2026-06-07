@@ -403,6 +403,7 @@ placements_data = S.placements
 found_words     = S.found_words
 total_words     = len(placements_data)
 hints_remaining = max(0, 3 - S.hints_used)
+GRID_N          = len(grid_data)   # actual grid size (dynamic)
 
 mins, secs = divmod(remaining, 60)
 
@@ -416,204 +417,157 @@ word_color_map = {}
 for i, w in enumerate(sorted(placements_data.keys())):
     word_color_map[w] = COLORS[i % len(COLORS)]
 
-for fw in found_words:
-    word_color_map[fw] = word_color_map.get(fw, "#2e7d32")
+placements_js  = json.dumps(placements_data)
+found_words_js = json.dumps(found_words)
+color_map_js   = json.dumps(word_color_map)
+grid_js        = json.dumps(grid_data)
 
-placements_js   = json.dumps(placements_data)
-found_words_js  = json.dumps(found_words)
-color_map_js    = json.dumps(word_color_map)
-grid_js         = json.dumps(grid_data)
-
-GAME_HTML = f"""
-<!DOCTYPE html>
+GAME_HTML = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Space+Grotesk:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap');
+* {{ box-sizing:border-box; margin:0; padding:0; user-select:none; }}
+body {{ background:transparent; font-family:'Nunito',sans-serif; }}
 
-  * {{ box-sizing: border-box; margin: 0; padding: 0; user-select: none; }}
-  body {{ background: transparent; font-family: 'Space Grotesk', sans-serif; }}
+#game-wrap {{ display:flex; gap:16px; align-items:flex-start; padding:4px; }}
 
-  #game-wrap {{
-    display: flex; gap: 20px; align-items: flex-start;
-    padding: 4px;
-  }}
+/* ── Grid ── */
+#grid-panel {{ position:relative; flex:1; min-width:0; }}
 
-  /* ── Grid ── */
-  #grid-panel {{ flex: 1; min-width: 0; }}
+#grid-wrap {{ position:relative; display:inline-block; width:100%; max-width:520px; }}
 
-  #grid {{
-    display: inline-grid;
-    grid-template-columns: repeat({GRID_SIZE}, 1fr);
-    gap: 5px;
-    background: #fff;
-    border-radius: 18px;
-    padding: 14px;
-    box-shadow: 0 4px 24px rgba(21,101,192,0.13);
-    width: 100%;
-    max-width: 560px;
-  }}
+#grid {{
+  display:grid;
+  grid-template-columns: repeat({GRID_N}, 1fr);
+  gap:6px;
+  padding:12px;
+  background:#fff;
+  border-radius:20px;
+  box-shadow:0 4px 24px rgba(21,101,192,0.12);
+  position:relative; z-index:2;
+}}
 
-  .cell {{
-    aspect-ratio: 1;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Nunito', sans-serif;
-    font-size: clamp(0.7rem, 1.8vw, 1.1rem);
-    font-weight: 900;
-    border-radius: 10px;
-    cursor: pointer;
-    background: #f0f4ff;
-    color: #1a237e;
-    border: 2px solid transparent;
-    transition: background 0.12s, transform 0.08s, border-color 0.12s;
-    -webkit-tap-highlight-color: transparent;
-  }}
-  .cell:hover {{ background: #e3eaff; border-color: #7986cb; }}
-  .cell.selecting {{
-    background: #ffd54f !important;
-    color: #1a1a2e !important;
-    border-color: #ffa000 !important;
-    transform: scale(1.12);
-    z-index: 2;
-    box-shadow: 0 2px 8px rgba(255,160,0,0.35);
-  }}
-  .cell.found {{
-    color: #fff !important;
-    border-color: transparent !important;
-    transform: scale(1.0);
-  }}
-  .cell.shake {{
-    animation: shake 0.35s ease;
-  }}
-  @keyframes shake {{
-    0%,100% {{ transform: translateX(0); }}
-    20%      {{ transform: translateX(-5px); }}
-    40%      {{ transform: translateX(5px); }}
-    60%      {{ transform: translateX(-4px); }}
-    80%      {{ transform: translateX(4px); }}
-  }}
+/* SVG overlay for lines */
+#svg-overlay {{
+  position:absolute; top:0; left:0;
+  width:100%; height:100%;
+  pointer-events:none; z-index:1;
+  overflow:visible;
+}}
 
-  /* ── Right panel ── */
-  #right-panel {{
-    width: 220px; flex-shrink: 0;
-    display: flex; flex-direction: column; gap: 14px;
-  }}
+/* ── Circle cells ── */
+.cell {{
+  aspect-ratio:1;
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Nunito',sans-serif;
+  font-size:clamp(0.75rem, 2vw, 1.05rem);
+  font-weight:900;
+  cursor:pointer;
+  background:#eef2ff;
+  color:#1a237e;
+  border:3px solid transparent;
+  transition:transform 0.1s, background 0.15s;
+  -webkit-tap-highlight-color:transparent;
+  position:relative; z-index:3;
+}}
+.cell:hover {{ background:#dde3ff; transform:scale(1.1); }}
+.cell.selecting {{
+  background:#ffd54f !important;
+  color:#1a1a2e !important;
+  border-color:#ffa000 !important;
+  transform:scale(1.15);
+  box-shadow:0 3px 12px rgba(255,160,0,0.4);
+}}
+.cell.found {{
+  color:#fff !important;
+  border-color:transparent !important;
+}}
+.cell.shake {{ animation:shake 0.35s ease; }}
+@keyframes shake {{
+  0%,100% {{ transform:translateX(0); }}
+  20%      {{ transform:translateX(-5px); }}
+  40%      {{ transform:translateX(5px); }}
+  60%      {{ transform:translateX(-4px); }}
+  80%      {{ transform:translateX(4px); }}
+}}
 
-  .panel-card {{
-    background: #fff;
-    border-radius: 16px;
-    padding: 16px;
-    box-shadow: 0 2px 12px rgba(21,101,192,0.09);
-    text-align: center;
-  }}
+/* ── Right panel ── */
+#right-panel {{
+  width:200px; flex-shrink:0;
+  display:flex; flex-direction:column; gap:12px;
+}}
+.panel-card {{
+  background:#fff; border-radius:16px; padding:14px;
+  box-shadow:0 2px 12px rgba(21,101,192,0.09); text-align:center;
+}}
+#timer-display {{
+  font-size:2.4rem; font-weight:900; color:#1565c0;
+  letter-spacing:2px; line-height:1;
+}}
+#timer-display.warning {{ color:#e53935; animation:pulse 1s infinite; }}
+@keyframes pulse {{ 0%,100%{{opacity:1}} 50%{{opacity:0.55}} }}
+.timer-label {{ color:#888; font-size:0.72rem; margin-top:4px; }}
 
-  /* Timer */
-  #timer-display {{
-    font-family: 'Nunito', sans-serif;
-    font-size: 2.6rem;
-    font-weight: 900;
-    color: #1565c0;
-    letter-spacing: 2px;
-    line-height: 1;
-  }}
-  #timer-display.warning {{ color: #e53935; animation: pulse 1s infinite; }}
-  @keyframes pulse {{ 0%,100% {{ opacity:1; }} 50% {{ opacity:0.6; }} }}
-  .timer-label {{ color: #888; font-size: 0.75rem; margin-top: 4px; }}
+#score-row {{ display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-bottom:6px; }}
+.score-bubble {{
+  width:26px; height:26px; border-radius:50%;
+  border:2.5px solid #c5cae9; background:#eef2ff;
+  transition:all 0.3s;
+}}
+.score-bubble.done {{ border-color:transparent; transform:scale(1.15); }}
+#score-text {{ font-size:1rem; font-weight:800; color:#1565c0; }}
 
-  /* Score bubbles */
-  #score-row {{
-    display: flex; gap: 8px; justify-content: center; align-items: center;
-  }}
-  .score-bubble {{
-    width: 28px; height: 28px;
-    border-radius: 50%;
-    border: 2.5px solid #c5cae9;
-    background: #f0f4ff;
-    transition: all 0.3s;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 0.6rem;
-  }}
-  .score-bubble.done {{
-    border-color: transparent;
-    background: #1565c0;
-    transform: scale(1.15);
-  }}
-  #score-text {{
-    font-family: 'Nunito', sans-serif;
-    font-size: 1.1rem; font-weight: 800;
-    color: #1565c0; margin-top: 8px;
-  }}
+.found-word-item {{
+  display:flex; align-items:center; gap:6px;
+  font-size:0.82rem; font-weight:800;
+  padding:5px 10px; border-radius:20px;
+  margin-bottom:4px; color:#fff;
+  animation:popIn 0.3s cubic-bezier(.175,.885,.32,1.275);
+}}
+@keyframes popIn {{ from{{transform:scale(0.5);opacity:0}} to{{transform:scale(1);opacity:1}} }}
 
-  /* Found words list */
-  #found-list {{ text-align: left; }}
-  .found-word-item {{
-    display: flex; align-items: center; gap: 8px;
-    font-size: 0.85rem; font-weight: 700;
-    padding: 5px 8px; border-radius: 8px;
-    margin-bottom: 4px;
-    color: #fff;
-    animation: popIn 0.3s cubic-bezier(.175,.885,.32,1.275);
-  }}
-  @keyframes popIn {{
-    from {{ transform: scale(0.5); opacity: 0; }}
-    to   {{ transform: scale(1);   opacity: 1; }}
-  }}
+#hint-btn, #submit-btn {{
+  width:100%; padding:10px; border:none; border-radius:12px;
+  font-family:'Nunito',sans-serif; font-size:0.95rem; font-weight:900;
+  cursor:pointer; transition:all 0.2s;
+}}
+#hint-btn {{
+  background:linear-gradient(135deg,#7c4dff,#651fff);
+  color:#fff; box-shadow:0 4px 12px rgba(124,77,255,0.3);
+}}
+#hint-btn:hover {{ transform:translateY(-2px); }}
+#hint-btn:disabled {{ background:#bdbdbd; box-shadow:none; transform:none; cursor:not-allowed; }}
+#submit-btn {{
+  background:linear-gradient(135deg,#1565c0,#1a237e);
+  color:#fff; box-shadow:0 4px 12px rgba(21,101,192,0.3);
+}}
+#submit-btn:hover {{ transform:translateY(-2px); }}
 
-  /* Hint button */
-  #hint-btn {{
-    width: 100%; padding: 10px;
-    background: linear-gradient(135deg, #7c4dff, #651fff);
-    color: #fff; border: none; border-radius: 12px;
-    font-family: 'Nunito', sans-serif;
-    font-size: 1rem; font-weight: 800;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 4px 12px rgba(124,77,255,0.3);
-  }}
-  #hint-btn:hover {{ transform: translateY(-2px); box-shadow: 0 6px 16px rgba(124,77,255,0.4); }}
-  #hint-btn:disabled {{ background: #bdbdbd; box-shadow: none; transform: none; cursor: not-allowed; }}
-
-  /* Submit button */
-  #submit-btn {{
-    width: 100%; padding: 10px;
-    background: linear-gradient(135deg, #1565c0, #1a237e);
-    color: #fff; border: none; border-radius: 12px;
-    font-family: 'Nunito', sans-serif;
-    font-size: 1rem; font-weight: 800;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 4px 12px rgba(21,101,192,0.3);
-  }}
-  #submit-btn:hover {{ transform: translateY(-2px); }}
-
-  /* Toast */
-  #toast {{
-    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-    background: #1a237e; color: #fff;
-    padding: 12px 28px; border-radius: 50px;
-    font-family: 'Nunito', sans-serif;
-    font-size: 1.1rem; font-weight: 800;
-    opacity: 0; pointer-events: none;
-    transition: opacity 0.3s;
-    z-index: 999;
-    box-shadow: 0 8px 24px rgba(26,35,126,0.35);
-  }}
-  #toast.show {{ opacity: 1; }}
+#toast {{
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:#1a237e; color:#fff;
+  padding:10px 28px; border-radius:50px;
+  font-size:1.05rem; font-weight:800;
+  opacity:0; pointer-events:none; transition:opacity 0.3s;
+  z-index:999; box-shadow:0 8px 24px rgba(26,35,126,0.35);
+}}
+#toast.show {{ opacity:1; }}
 </style>
 </head>
 <body>
-
 <div id="game-wrap">
 
-  <!-- LEFT: Grid -->
   <div id="grid-panel">
-    <div id="grid"></div>
+    <div id="grid-wrap">
+      <svg id="svg-overlay"></svg>
+      <div id="grid"></div>
+    </div>
   </div>
 
-  <!-- RIGHT: Info panel -->
   <div id="right-panel">
-
     <div class="panel-card">
       <div id="timer-display">{mins:02d}:{secs:02d}</div>
       <div class="timer-label">time remaining</div>
@@ -626,282 +580,280 @@ GAME_HTML = f"""
 
     <button id="hint-btn">💡 Hint ({hints_remaining} left)</button>
 
-    <div class="panel-card" id="found-list">
-      <div style="font-size:0.7rem;color:#999;margin-bottom:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Found Words</div>
+    <div class="panel-card" style="text-align:left;">
+      <div style="font-size:0.65rem;color:#999;margin-bottom:8px;font-weight:900;letter-spacing:1px;text-transform:uppercase;">Found</div>
       <div id="found-words-container"></div>
     </div>
 
     <button id="submit-btn">✅ Submit</button>
   </div>
-
 </div>
-
 <div id="toast"></div>
 
 <script>
-const GRID        = {grid_js};
-const PLACEMENTS  = {placements_js};
-const COLOR_MAP   = {color_map_js};
-const GRID_SIZE   = {GRID_SIZE};
-const TOTAL_WORDS = {total_words};
-const MAX_HINTS   = 3;
+const GRID       = {grid_js};
+const PLACEMENTS = {placements_js};
+const COLOR_MAP  = {color_map_js};
+const GRID_N     = {GRID_N};
+const TOTAL      = {total_words};
+const MAX_HINTS  = 3;
 
-let foundWords   = {found_words_js};
-let hintsUsed    = {S.hints_used};
-let isSelecting  = false;
+let foundWords    = {found_words_js};
+let hintsUsed     = {S.hints_used};
+let isSelecting   = false;
 let selectedCells = [];
-let hintActive   = false;
-let timerSecs    = {remaining};
-let timerInterval;
+let hintActive    = false;
+let timerSecs     = {remaining};
 
-// ── Build grid DOM ──────────────────────────────────────────
+// ── Build grid ───────────────────────────────────────────────
 const gridEl = document.getElementById('grid');
-
-for (let r = 0; r < GRID_SIZE; r++) {{
-  for (let c = 0; c < GRID_SIZE; c++) {{
+for (let r=0; r<GRID_N; r++) {{
+  for (let c=0; c<GRID_N; c++) {{
     const cell = document.createElement('div');
     cell.className = 'cell';
     cell.textContent = GRID[r][c];
-    cell.dataset.r = r;
-    cell.dataset.c = c;
+    cell.dataset.r = r; cell.dataset.c = c;
     cell.id = `cell-${{r}}-${{c}}`;
     gridEl.appendChild(cell);
   }}
 }}
 
-// ── Colour already-found words ──────────────────────────────
+// ── SVG connecting line ──────────────────────────────────────
+const svg = document.getElementById('svg-overlay');
+
+function cellCenter(el) {{
+  const gRect  = document.getElementById('grid-wrap').getBoundingClientRect();
+  const cRect  = el.getBoundingClientRect();
+  return {{
+    x: cRect.left - gRect.left + cRect.width/2,
+    y: cRect.top  - gRect.top  + cRect.height/2,
+    r: cRect.width/2
+  }};
+}}
+
+function drawSelectionLine(cells, color='#ffa000') {{
+  // Remove old selection lines
+  svg.querySelectorAll('.sel-line,.sel-dot').forEach(e=>e.remove());
+  if (cells.length < 2) return;
+  const pts = cells.map(cellCenter);
+  // Draw lines between consecutive centers
+  for (let i=1; i<pts.length; i++) {{
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1', pts[i-1].x); line.setAttribute('y1', pts[i-1].y);
+    line.setAttribute('x2', pts[i].x);   line.setAttribute('y2', pts[i].y);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', pts[0].r * 0.9);
+    line.setAttribute('stroke-linecap','round');
+    line.setAttribute('opacity','0.55');
+    line.classList.add('sel-line');
+    svg.appendChild(line);
+  }}
+}}
+
+function drawFoundLine(cells, color) {{
+  const pts = cells.map(([r,c]) => cellCenter(document.getElementById(`cell-${{r}}-${{c}}`)));
+  for (let i=1; i<pts.length; i++) {{
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1', pts[i-1].x); line.setAttribute('y1', pts[i-1].y);
+    line.setAttribute('x2', pts[i].x);   line.setAttribute('y2', pts[i].y);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', pts[0].r * 0.85);
+    line.setAttribute('stroke-linecap','round');
+    line.setAttribute('opacity','0.6');
+    line.classList.add('found-line');
+    svg.appendChild(line);
+  }}
+}}
+
+function redrawAllFoundLines() {{
+  svg.querySelectorAll('.found-line').forEach(e=>e.remove());
+  foundWords.forEach(w => {{
+    const cells = PLACEMENTS[w];
+    if (cells) drawFoundLine(cells, COLOR_MAP[w]||'#1565c0');
+  }});
+}}
+
+// ── Colour found cells ───────────────────────────────────────
 function colourFound() {{
-  // Reset
   document.querySelectorAll('.cell').forEach(el => {{
     el.classList.remove('found');
-    el.style.background = '';
+    el.style.background='';
   }});
-  foundWords.forEach(word => {{
-    const cells = PLACEMENTS[word];
+  foundWords.forEach(w => {{
+    const cells = PLACEMENTS[w];
     if (!cells) return;
-    const col = COLOR_MAP[word] || '#1565c0';
+    const col = COLOR_MAP[w]||'#1565c0';
     cells.forEach(([r,c]) => {{
       const el = document.getElementById(`cell-${{r}}-${{c}}`);
-      if (el) {{
-        el.classList.add('found');
-        el.style.background = col;
-      }}
+      if (el) {{ el.classList.add('found'); el.style.background=col; }}
     }});
   }});
 }}
 
-// ── Score bubbles ───────────────────────────────────────────
+// ── Score ────────────────────────────────────────────────────
 function updateScore() {{
   const row = document.getElementById('score-row');
-  row.innerHTML = '';
-  for (let i = 0; i < TOTAL_WORDS; i++) {{
-    const b = document.createElement('div');
-    b.className = 'score-bubble' + (i < foundWords.length ? ' done' : '');
-    if (i < foundWords.length) {{
-      const w = foundWords[i];
-      b.style.background = COLOR_MAP[w] || '#1565c0';
-    }}
+  row.innerHTML='';
+  for (let i=0;i<TOTAL;i++) {{
+    const b=document.createElement('div');
+    b.className='score-bubble'+(i<foundWords.length?' done':'');
+    if (i<foundWords.length) b.style.background=COLOR_MAP[foundWords[i]]||'#1565c0';
     row.appendChild(b);
   }}
-  document.getElementById('score-text').textContent =
-    `${{foundWords.length}} / ${{TOTAL_WORDS}} found`;
+  document.getElementById('score-text').textContent=`${{foundWords.length}} / ${{TOTAL}} found`;
 }}
 
-// ── Found words list ────────────────────────────────────────
 function updateFoundList() {{
-  const container = document.getElementById('found-words-container');
-  container.innerHTML = '';
-  foundWords.forEach(w => {{
-    const div = document.createElement('div');
-    div.className = 'found-word-item';
-    div.style.background = COLOR_MAP[w] || '#1565c0';
-    div.innerHTML = `<span>✓</span><span>${{w}}</span>`;
-    container.appendChild(div);
+  const c=document.getElementById('found-words-container');
+  c.innerHTML='';
+  foundWords.forEach(w=>{{
+    const d=document.createElement('div');
+    d.className='found-word-item';
+    d.style.background=COLOR_MAP[w]||'#1565c0';
+    d.innerHTML=`<span>✓</span><span>${{w}}</span>`;
+    c.appendChild(d);
   }});
 }}
 
-// ── Toast ────────────────────────────────────────────────────
-function showToast(msg, duration=2000) {{
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), duration);
+function showToast(msg,duration=2000) {{
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),duration);
 }}
 
-// ── Drag selection ───────────────────────────────────────────
-function getCellAt(x, y) {{
-  const el = document.elementFromPoint(x, y);
-  if (el && el.classList.contains('cell')) return el;
-  return null;
+// ── Drag ─────────────────────────────────────────────────────
+function getCellAt(x,y) {{
+  const el=document.elementFromPoint(x,y);
+  return el&&el.classList.contains('cell')?el:null;
 }}
-
-function cellKey(el) {{ return `${{el.dataset.r}},${{el.dataset.c}}`; }}
-
 function clearSelection() {{
-  selectedCells.forEach(el => el.classList.remove('selecting'));
-  selectedCells = [];
+  selectedCells.forEach(el=>el.classList.remove('selecting'));
+  selectedCells=[];
+  svg.querySelectorAll('.sel-line,.sel-dot').forEach(e=>e.remove());
 }}
-
-function isAdjacent(a, b) {{
-  // True if b is any of the 8 neighbours of a
-  const dr = Math.abs(+a.dataset.r - +b.dataset.r);
-  const dc = Math.abs(+a.dataset.c - +b.dataset.c);
-  return dr <= 1 && dc <= 1 && (dr + dc > 0);
+function isAdjacent(a,b) {{
+  return Math.abs(+a.dataset.r-+b.dataset.r)<=1 &&
+         Math.abs(+a.dataset.c-+b.dataset.c)<=1;
 }}
-
 function tryMatch() {{
-  const sel = selectedCells.map(el => [+el.dataset.r, +el.dataset.c]);
-  const selRev = [...sel].reverse();
-
-  for (const [word, cells] of Object.entries(PLACEMENTS)) {{
+  const sel=selectedCells.map(el=>[+el.dataset.r,+el.dataset.c]);
+  const selR=[...sel].reverse();
+  for (const [word,cells] of Object.entries(PLACEMENTS)) {{
     if (foundWords.includes(word)) continue;
-    const match = JSON.stringify(sel) === JSON.stringify(cells) ||
-                  JSON.stringify(selRev) === JSON.stringify(cells);
-    if (match) {{
+    if (JSON.stringify(sel)===JSON.stringify(cells)||
+        JSON.stringify(selR)===JSON.stringify(cells)) {{
       foundWords.push(word);
       colourFound();
-      updateScore();
-      updateFoundList();
+      setTimeout(redrawAllFoundLines, 50);
+      updateScore(); updateFoundList();
       showToast(`✓ ${{word}}!`);
-      // Signal Python
-      const url = new URL(window.location.href);
-      url.searchParams.set('found', word);
-      window.parent.location.href = url.toString();
+      const url=new URL(window.location.href);
+      url.searchParams.set('found',word);
+      window.parent.location.href=url.toString();
       return true;
     }}
   }}
-  // No match — shake
-  selectedCells.forEach(el => {{
+  selectedCells.forEach(el=>{{
     el.classList.add('shake');
-    setTimeout(() => el.classList.remove('shake'), 400);
+    setTimeout(()=>el.classList.remove('shake'),400);
   }});
   return false;
 }}
 
-// Pointer events (works for mouse + touch)
-gridEl.addEventListener('pointerdown', e => {{
-  const cell = getCellAt(e.clientX, e.clientY);
-  if (!cell) return;
-  if (cell.classList.contains('found')) return;
+gridEl.addEventListener('pointerdown',e=>{{
+  const cell=getCellAt(e.clientX,e.clientY);
+  if (!cell||cell.classList.contains('found')) return;
   e.preventDefault();
-  isSelecting = true;
-  clearSelection();
+  isSelecting=true; clearSelection();
   cell.classList.add('selecting');
-  selectedCells = [cell];
+  selectedCells=[cell];
   gridEl.setPointerCapture(e.pointerId);
 }});
 
-gridEl.addEventListener('pointermove', e => {{
+gridEl.addEventListener('pointermove',e=>{{
   if (!isSelecting) return;
-  const cell = getCellAt(e.clientX, e.clientY);
-  if (!cell || cell.classList.contains('found')) return;
-
-  // Moving back — undo last cell
-  if (selectedCells.length > 1 && cell === selectedCells[selectedCells.length - 2]) {{
-    selectedCells[selectedCells.length - 1].classList.remove('selecting');
+  const cell=getCellAt(e.clientX,e.clientY);
+  if (!cell||cell.classList.contains('found')) return;
+  if (selectedCells.length>1&&cell===selectedCells[selectedCells.length-2]) {{
+    selectedCells[selectedCells.length-1].classList.remove('selecting');
     selectedCells.pop();
+    drawSelectionLine(selectedCells);
     return;
   }}
   if (selectedCells.includes(cell)) return;
-
-  // New cell must be adjacent (8-directional) to last selected
-  const last = selectedCells[selectedCells.length - 1];
-  if (!isAdjacent(last, cell)) return;
-
+  if (!isAdjacent(selectedCells[selectedCells.length-1],cell)) return;
   cell.classList.add('selecting');
   selectedCells.push(cell);
+  drawSelectionLine(selectedCells);
 }});
 
-gridEl.addEventListener('pointerup', e => {{
+gridEl.addEventListener('pointerup',e=>{{
   if (!isSelecting) return;
-  isSelecting = false;
-  if (selectedCells.length >= 2) {{
-    const matched = tryMatch();
-    if (!matched) {{
-      setTimeout(clearSelection, 400);
-    }} else {{
-      clearSelection();
-    }}
-  }} else {{
-    clearSelection();
-  }}
+  isSelecting=false;
+  if (selectedCells.length>=2) {{
+    const matched=tryMatch();
+    if (!matched) setTimeout(clearSelection,400);
+    else clearSelection();
+  }} else clearSelection();
 }});
 
 // ── Hint ─────────────────────────────────────────────────────
-document.getElementById('hint-btn').addEventListener('click', () => {{
-  if (hintsUsed >= MAX_HINTS) return;
-  if (hintActive) return;
-
-  const remaining = Object.keys(PLACEMENTS).filter(w => !foundWords.includes(w));
-  if (remaining.length === 0) return;
-
-  const word = remaining[Math.floor(Math.random() * remaining.length)];
-  const cells = PLACEMENTS[word];
-  const col   = COLOR_MAP[word] || '#7c4dff';
-
-  hintsUsed++;
-  hintActive = true;
-
-  // Update hint button
-  const hintBtn = document.getElementById('hint-btn');
-  const left = MAX_HINTS - hintsUsed;
-  hintBtn.textContent = `💡 Hint (${{left}} left)`;
-  if (hintsUsed >= MAX_HINTS) hintBtn.disabled = true;
-
-  // Flash cells
-  cells.forEach(([r, c]) => {{
-    const el = document.getElementById(`cell-${{r}}-${{c}}`);
+document.getElementById('hint-btn').addEventListener('click',()=>{{
+  if (hintsUsed>=MAX_HINTS||hintActive) return;
+  const rem=Object.keys(PLACEMENTS).filter(w=>!foundWords.includes(w));
+  if (!rem.length) return;
+  const word=rem[Math.floor(Math.random()*rem.length)];
+  const cells=PLACEMENTS[word];
+  const col=COLOR_MAP[word]||'#7c4dff';
+  hintsUsed++; hintActive=true;
+  const left=MAX_HINTS-hintsUsed;
+  const btn=document.getElementById('hint-btn');
+  btn.textContent=`💡 Hint (${{left}} left)`;
+  if (hintsUsed>=MAX_HINTS) btn.disabled=true;
+  cells.forEach(([r,c])=>{{
+    const el=document.getElementById(`cell-${{r}}-${{c}}`);
     if (!el) return;
-    const orig = el.style.background;
-    el.style.background = col;
-    el.style.opacity = '0.7';
-    setTimeout(() => {{
-      el.style.background = orig;
-      el.style.opacity = '1';
-    }}, 1800);
+    const orig=el.style.background;
+    el.style.background=col; el.style.opacity='0.75';
+    setTimeout(()=>{{el.style.background=orig;el.style.opacity='1';}},1800);
   }});
-  showToast(`💡 Hint: look for a ${{word.length}}-letter word`, 2500);
-
-  setTimeout(() => {{ hintActive = false; }}, 2000);
-
-  // Sync hints to Python
-  const url = new URL(window.location.href);
-  url.searchParams.set('hints', hintsUsed);
-  window.parent.location.href = url.toString();
+  showToast(`💡 ${{word.length}}-letter word`,2500);
+  setTimeout(()=>{{hintActive=false;}},2000);
+  const url=new URL(window.location.href);
+  url.searchParams.set('hints',hintsUsed);
+  window.parent.location.href=url.toString();
 }});
 
-// ── Submit ───────────────────────────────────────────────────
-document.getElementById('submit-btn').addEventListener('click', () => {{
+// ── Submit ────────────────────────────────────────────────────
+document.getElementById('submit-btn').addEventListener('click',()=>{{
   if (!confirm('Submit your answers now?')) return;
-  const url = new URL(window.location.href);
-  url.searchParams.set('submit', '1');
-  window.parent.location.href = url.toString();
+  const url=new URL(window.location.href);
+  url.searchParams.set('submit','1');
+  window.parent.location.href=url.toString();
 }});
 
-// ── Timer ────────────────────────────────────────────────────
+// ── Timer ─────────────────────────────────────────────────────
 function updateTimer() {{
-  if (timerSecs <= 0) {{
-    document.getElementById('timer-display').textContent = '00:00';
-    return;
-  }}
+  if (timerSecs<=0) return;
   timerSecs--;
-  const m = Math.floor(timerSecs / 60).toString().padStart(2,'0');
-  const s = (timerSecs % 60).toString().padStart(2,'0');
-  const el = document.getElementById('timer-display');
-  el.textContent = `${{m}}:${{s}}`;
-  if (timerSecs < 120) el.classList.add('warning');
+  const m=Math.floor(timerSecs/60).toString().padStart(2,'0');
+  const s=(timerSecs%60).toString().padStart(2,'0');
+  const el=document.getElementById('timer-display');
+  el.textContent=`${{m}}:${{s}}`;
+  if(timerSecs<120) el.classList.add('warning');
   else el.classList.remove('warning');
 }}
+setInterval(updateTimer,1000);
 
-timerInterval = setInterval(updateTimer, 1000);
-
-// ── Init ─────────────────────────────────────────────────────
-colourFound();
-updateScore();
-updateFoundList();
+// ── Init ──────────────────────────────────────────────────────
+window.addEventListener('load',()=>{{
+  colourFound();
+  setTimeout(redrawAllFoundLines, 100);
+  updateScore();
+  updateFoundList();
+}});
 </script>
 </body>
-</html>
-"""
+</html>"""
 
-components.html(GAME_HTML, height=700, scrolling=False)
+components.html(GAME_HTML, height=680, scrolling=False)
