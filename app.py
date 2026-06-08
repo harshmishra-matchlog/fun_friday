@@ -595,7 +595,7 @@ const PLACEMENTS = {placements_js};
 const COLOR_MAP  = {color_map_js};
 const GRID_N     = {GRID_N};
 const TOTAL      = {total_words};
-const MAX_HINTS  = 3;
+const MAX_HINTS  = 4;
 
 let foundWords    = {found_words_js};
 let hintsUsed     = {S.hints_used};
