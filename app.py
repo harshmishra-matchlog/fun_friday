@@ -433,125 +433,133 @@ body {{ background:transparent; font-family:'Nunito',sans-serif; }}
 
 #game-wrap {{ display:flex; gap:16px; align-items:flex-start; padding:4px; }}
 
-/* ── Grid ── */
+/* ── Grid panel ── */
 #grid-panel {{ position:relative; flex:1; min-width:0; }}
+#grid-wrap  {{ position:relative; display:block; width:100%; max-width:480px; }}
 
-#grid-wrap {{ position:relative; display:inline-block; width:100%; max-width:480px; }}
+/* SVG behind cells — line draws under circles */
+#svg-overlay {{
+  position:absolute; top:0; left:0;
+  width:100%; height:100%;
+  pointer-events:none;
+  z-index:1;          /* BELOW cells */
+  overflow:visible;
+}}
 
 #grid {{
   display:grid;
   grid-template-columns: repeat({GRID_N}, 1fr);
-  gap:8px;
-  padding:14px;
-  background:#fff;
+  gap:6px;
+  padding:12px;
+  background:#f8f9ff;
   border-radius:20px;
-  box-shadow:0 4px 24px rgba(21,101,192,0.12);
-  position:relative; z-index:1;
+  box-shadow:0 4px 24px rgba(21,101,192,0.1);
+  position:relative;
+  z-index:2;          /* ABOVE svg */
 }}
 
-/* SVG sits ON TOP of grid, pointer-events none so clicks pass through */
-#svg-overlay {{
-  position:absolute; top:0; left:0;
-  width:100%; height:100%;
-  pointer-events:none; z-index:10;
-  overflow:visible;
-}}
-
-/* ── Circle cells ── */
+/* ── Strands-style circles ── */
 .cell {{
   aspect-ratio:1;
   border-radius:50%;
   display:flex; align-items:center; justify-content:center;
   font-family:'Nunito',sans-serif;
-  font-size:clamp(0.6rem, 1.5vw, 0.85rem);
+  font-size:clamp(0.6rem, 1.6vw, 0.9rem);
   font-weight:900;
   cursor:pointer;
-  background:#eef2ff;
+  background:#ffffff;
   color:#1a237e;
-  border:2px solid transparent;
-  transition:transform 0.1s, background 0.15s;
+  /* Subtle inset shadow = depth like Strands */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8);
+  transition:background 0.12s, transform 0.08s, box-shadow 0.12s;
   -webkit-tap-highlight-color:transparent;
-  position:relative; z-index:2;
+  position:relative; z-index:3;  /* ABOVE svg lines */
 }}
-.cell:hover {{ background:#dde3ff; transform:scale(1.08); }}
+.cell:hover {{
+  background:#e8eaff;
+  transform:scale(1.06);
+}}
+
+/* Selecting = yellow filled, no border, just shadow glow */
 .cell.selecting {{
-  background:#ffd54f !important;
-  color:#1a1a2e !important;
-  transform:scale(1.12);
-  box-shadow:0 2px 8px rgba(255,160,0,0.35);
+  background:#f5a623 !important;
+  color:#fff !important;
+  transform:scale(1.1);
+  box-shadow:0 0 0 3px rgba(245,166,35,0.35), 0 3px 8px rgba(245,166,35,0.4) !important;
 }}
+
+/* Found = solid color fill, white letter */
 .cell.found {{
   color:#fff !important;
-  border-color:transparent !important;
+  box-shadow:0 2px 6px rgba(0,0,0,0.15) !important;
 }}
-.cell.shake {{ animation:shake 0.35s ease; }}
+
+.cell.shake {{ animation:shake 0.32s ease; }}
 @keyframes shake {{
   0%,100% {{ transform:translateX(0); }}
-  20%      {{ transform:translateX(-4px); }}
-  40%      {{ transform:translateX(4px); }}
-  60%      {{ transform:translateX(-3px); }}
-  80%      {{ transform:translateX(3px); }}
+  25%      {{ transform:translateX(-4px); }}
+  75%      {{ transform:translateX(4px); }}
 }}
 
 /* ── Right panel ── */
 #right-panel {{
-  width:200px; flex-shrink:0;
-  display:flex; flex-direction:column; gap:12px;
+  width:190px; flex-shrink:0;
+  display:flex; flex-direction:column; gap:10px;
 }}
 .panel-card {{
-  background:#fff; border-radius:16px; padding:14px;
-  box-shadow:0 2px 12px rgba(21,101,192,0.09); text-align:center;
+  background:#fff; border-radius:14px; padding:12px;
+  box-shadow:0 2px 10px rgba(21,101,192,0.08); text-align:center;
 }}
 #timer-display {{
-  font-size:2.4rem; font-weight:900; color:#1565c0;
+  font-size:2.2rem; font-weight:900; color:#1565c0;
   letter-spacing:2px; line-height:1;
 }}
 #timer-display.warning {{ color:#e53935; animation:pulse 1s infinite; }}
-@keyframes pulse {{ 0%,100%{{opacity:1}} 50%{{opacity:0.55}} }}
-.timer-label {{ color:#888; font-size:0.72rem; margin-top:4px; }}
+@keyframes pulse {{ 0%,100%{{opacity:1}} 50%{{opacity:0.5}} }}
+.timer-label {{ color:#999; font-size:0.7rem; margin-top:3px; }}
 
-#score-row {{ display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-bottom:6px; }}
+#score-row {{ display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin-bottom:5px; }}
 .score-bubble {{
-  width:26px; height:26px; border-radius:50%;
-  border:2.5px solid #c5cae9; background:#eef2ff;
-  transition:all 0.3s;
+  width:22px; height:22px; border-radius:50%;
+  border:2px solid #c5cae9; background:#f0f4ff;
+  transition:all 0.25s;
 }}
-.score-bubble.done {{ border-color:transparent; transform:scale(1.15); }}
-#score-text {{ font-size:1rem; font-weight:800; color:#1565c0; }}
+.score-bubble.done {{ border-color:transparent; transform:scale(1.1); }}
+#score-text {{ font-size:0.9rem; font-weight:800; color:#1565c0; }}
 
 .found-word-item {{
   display:flex; align-items:center; gap:6px;
-  font-size:0.82rem; font-weight:800;
-  padding:5px 10px; border-radius:20px;
+  font-size:0.8rem; font-weight:800;
+  padding:4px 10px; border-radius:20px;
   margin-bottom:4px; color:#fff;
-  animation:popIn 0.3s cubic-bezier(.175,.885,.32,1.275);
+  animation:popIn 0.28s cubic-bezier(.175,.885,.32,1.275);
 }}
-@keyframes popIn {{ from{{transform:scale(0.5);opacity:0}} to{{transform:scale(1);opacity:1}} }}
+@keyframes popIn {{ from{{transform:scale(0.6);opacity:0}} to{{transform:scale(1);opacity:1}} }}
 
 #hint-btn, #submit-btn {{
-  width:100%; padding:10px; border:none; border-radius:12px;
-  font-family:'Nunito',sans-serif; font-size:0.95rem; font-weight:900;
-  cursor:pointer; transition:all 0.2s;
+  width:100%; padding:9px; border:none; border-radius:12px;
+  font-family:'Nunito',sans-serif; font-size:0.9rem; font-weight:900;
+  cursor:pointer; transition:all 0.18s;
 }}
 #hint-btn {{
   background:linear-gradient(135deg,#7c4dff,#651fff);
-  color:#fff; box-shadow:0 4px 12px rgba(124,77,255,0.3);
+  color:#fff; box-shadow:0 3px 10px rgba(124,77,255,0.28);
 }}
 #hint-btn:hover {{ transform:translateY(-2px); }}
-#hint-btn:disabled {{ background:#bdbdbd; box-shadow:none; transform:none; cursor:not-allowed; }}
+#hint-btn:disabled {{ background:#ccc; box-shadow:none; transform:none; cursor:not-allowed; }}
 #submit-btn {{
   background:linear-gradient(135deg,#1565c0,#1a237e);
-  color:#fff; box-shadow:0 4px 12px rgba(21,101,192,0.3);
+  color:#fff; box-shadow:0 3px 10px rgba(21,101,192,0.28);
 }}
 #submit-btn:hover {{ transform:translateY(-2px); }}
 
 #toast {{
-  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
   background:#1a237e; color:#fff;
-  padding:10px 28px; border-radius:50px;
-  font-size:1.05rem; font-weight:800;
-  opacity:0; pointer-events:none; transition:opacity 0.3s;
-  z-index:999; box-shadow:0 8px 24px rgba(26,35,126,0.35);
+  padding:9px 26px; border-radius:50px;
+  font-size:1rem; font-weight:800;
+  opacity:0; pointer-events:none; transition:opacity 0.25s;
+  z-index:999; box-shadow:0 6px 20px rgba(26,35,126,0.3);
 }}
 #toast.show {{ opacity:1; }}
 </style>
@@ -595,7 +603,7 @@ const PLACEMENTS = {placements_js};
 const COLOR_MAP  = {color_map_js};
 const GRID_N     = {GRID_N};
 const TOTAL      = {total_words};
-const MAX_HINTS  = 4;
+const MAX_HINTS  = 3;
 
 let foundWords    = {found_words_js};
 let hintsUsed     = {S.hints_used};
@@ -621,7 +629,6 @@ for (let r=0; r<GRID_N; r++) {{
 const svg = document.getElementById('svg-overlay');
 
 function cellCenter(el) {{
-  // Use position relative to grid-wrap
   const wrap = document.getElementById('grid-wrap');
   const wRect = wrap.getBoundingClientRect();
   const eRect = el.getBoundingClientRect();
@@ -632,11 +639,10 @@ function cellCenter(el) {{
   }};
 }}
 
-function drawSelectionLine(cells, color='#ffa000') {{
-  svg.querySelectorAll('.sel-line').forEach(e => e.remove());
-  if (cells.length < 2) return;
-  const pts = cells.map(cellCenter);
-  const strokeW = pts[0].r * 0.8;
+function drawLine(pts, color, cls) {{
+  if (pts.length < 2) return;
+  // Stroke width = cell diameter so line fills the gap between circles
+  const strokeW = pts[0].r * 1.55;
   for (let i = 1; i < pts.length; i++) {{
     const line = document.createElementNS('http://www.w3.org/2000/svg','line');
     line.setAttribute('x1', pts[i-1].x); line.setAttribute('y1', pts[i-1].y);
@@ -644,27 +650,32 @@ function drawSelectionLine(cells, color='#ffa000') {{
     line.setAttribute('stroke', color);
     line.setAttribute('stroke-width', strokeW);
     line.setAttribute('stroke-linecap','round');
-    line.setAttribute('opacity','0.6');
-    line.classList.add('sel-line');
+    line.setAttribute('opacity', cls === 'sel-line' ? '0.7' : '0.85');
+    line.classList.add(cls);
     svg.appendChild(line);
   }}
 }}
 
+function drawSelectionLine(cells) {{
+  svg.querySelectorAll('.sel-line').forEach(e => e.remove());
+  if (cells.length < 2) return;
+  drawLine(cells.map(cellCenter), '#f5a623', 'sel-line');
+}}
+
 function drawFoundLine(cells, color) {{
-  const pts = cells.map(([r,c]) => cellCenter(document.getElementById(`cell-${{r}}-${{c}}`)));
-  if (pts.length < 2) return;
-  const strokeW = pts[0].r * 0.75;
-  for (let i = 1; i < pts.length; i++) {{
-    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-    line.setAttribute('x1', pts[i-1].x); line.setAttribute('y1', pts[i-1].y);
-    line.setAttribute('x2', pts[i].x);   line.setAttribute('y2', pts[i].y);
-    line.setAttribute('stroke', color);
-    line.setAttribute('stroke-width', strokeW);
-    line.setAttribute('stroke-linecap','round');
-    line.setAttribute('opacity','0.55');
-    line.classList.add('found-line');
-    svg.appendChild(line);
-  }}
+  const pts = cells.map(([r,c]) => {{
+    const el = document.getElementById(`cell-${{r}}-${{c}}`);
+    return el ? cellCenter(el) : null;
+  }}).filter(Boolean);
+  drawLine(pts, color, 'found-line');
+}}
+
+function redrawAllFoundLines() {{
+  svg.querySelectorAll('.found-line').forEach(e => e.remove());
+  foundWords.forEach(w => {{
+    const cells = PLACEMENTS[w];
+    if (cells) drawFoundLine(cells, COLOR_MAP[w] || '#1565c0');
+  }});
 }}
 
 function redrawAllFoundLines() {{
