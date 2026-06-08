@@ -402,7 +402,7 @@ grid_data       = S.grid
 placements_data = S.placements
 found_words     = S.found_words
 total_words     = len(placements_data)
-hints_remaining = max(0, 3 - S.hints_used)
+hints_remaining = max(0, 4 - S.hints_used)
 GRID_N          = len(grid_data)   # actual grid size (dynamic)
 
 mins, secs = divmod(remaining, 60)
