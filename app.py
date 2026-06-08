@@ -436,24 +436,24 @@ body {{ background:transparent; font-family:'Nunito',sans-serif; }}
 /* ── Grid ── */
 #grid-panel {{ position:relative; flex:1; min-width:0; }}
 
-#grid-wrap {{ position:relative; display:inline-block; width:100%; max-width:520px; }}
+#grid-wrap {{ position:relative; display:inline-block; width:100%; max-width:480px; }}
 
 #grid {{
   display:grid;
   grid-template-columns: repeat({GRID_N}, 1fr);
-  gap:6px;
-  padding:12px;
+  gap:8px;
+  padding:14px;
   background:#fff;
   border-radius:20px;
   box-shadow:0 4px 24px rgba(21,101,192,0.12);
-  position:relative; z-index:2;
+  position:relative; z-index:1;
 }}
 
-/* SVG overlay for lines */
+/* SVG sits ON TOP of grid, pointer-events none so clicks pass through */
 #svg-overlay {{
   position:absolute; top:0; left:0;
   width:100%; height:100%;
-  pointer-events:none; z-index:1;
+  pointer-events:none; z-index:10;
   overflow:visible;
 }}
 
@@ -463,23 +463,22 @@ body {{ background:transparent; font-family:'Nunito',sans-serif; }}
   border-radius:50%;
   display:flex; align-items:center; justify-content:center;
   font-family:'Nunito',sans-serif;
-  font-size:clamp(0.75rem, 2vw, 1.05rem);
+  font-size:clamp(0.6rem, 1.5vw, 0.85rem);
   font-weight:900;
   cursor:pointer;
   background:#eef2ff;
   color:#1a237e;
-  border:3px solid transparent;
+  border:2px solid transparent;
   transition:transform 0.1s, background 0.15s;
   -webkit-tap-highlight-color:transparent;
-  position:relative; z-index:3;
+  position:relative; z-index:2;
 }}
-.cell:hover {{ background:#dde3ff; transform:scale(1.1); }}
+.cell:hover {{ background:#dde3ff; transform:scale(1.08); }}
 .cell.selecting {{
   background:#ffd54f !important;
   color:#1a1a2e !important;
-  border-color:#ffa000 !important;
-  transform:scale(1.15);
-  box-shadow:0 3px 12px rgba(255,160,0,0.4);
+  transform:scale(1.12);
+  box-shadow:0 2px 8px rgba(255,160,0,0.35);
 }}
 .cell.found {{
   color:#fff !important;
@@ -488,10 +487,10 @@ body {{ background:transparent; font-family:'Nunito',sans-serif; }}
 .cell.shake {{ animation:shake 0.35s ease; }}
 @keyframes shake {{
   0%,100% {{ transform:translateX(0); }}
-  20%      {{ transform:translateX(-5px); }}
-  40%      {{ transform:translateX(5px); }}
-  60%      {{ transform:translateX(-4px); }}
-  80%      {{ transform:translateX(4px); }}
+  20%      {{ transform:translateX(-4px); }}
+  40%      {{ transform:translateX(4px); }}
+  60%      {{ transform:translateX(-3px); }}
+  80%      {{ transform:translateX(3px); }}
 }}
 
 /* ── Right panel ── */
@@ -562,8 +561,8 @@ body {{ background:transparent; font-family:'Nunito',sans-serif; }}
 
   <div id="grid-panel">
     <div id="grid-wrap">
-      <svg id="svg-overlay"></svg>
       <div id="grid"></div>
+      <svg id="svg-overlay"></svg>
     </div>
   </div>
 
@@ -622,29 +621,30 @@ for (let r=0; r<GRID_N; r++) {{
 const svg = document.getElementById('svg-overlay');
 
 function cellCenter(el) {{
-  const gRect  = document.getElementById('grid-wrap').getBoundingClientRect();
-  const cRect  = el.getBoundingClientRect();
+  // Use position relative to grid-wrap
+  const wrap = document.getElementById('grid-wrap');
+  const wRect = wrap.getBoundingClientRect();
+  const eRect = el.getBoundingClientRect();
   return {{
-    x: cRect.left - gRect.left + cRect.width/2,
-    y: cRect.top  - gRect.top  + cRect.height/2,
-    r: cRect.width/2
+    x: eRect.left - wRect.left + eRect.width / 2,
+    y: eRect.top  - wRect.top  + eRect.height / 2,
+    r: eRect.width / 2
   }};
 }}
 
 function drawSelectionLine(cells, color='#ffa000') {{
-  // Remove old selection lines
-  svg.querySelectorAll('.sel-line,.sel-dot').forEach(e=>e.remove());
+  svg.querySelectorAll('.sel-line').forEach(e => e.remove());
   if (cells.length < 2) return;
   const pts = cells.map(cellCenter);
-  // Draw lines between consecutive centers
-  for (let i=1; i<pts.length; i++) {{
+  const strokeW = pts[0].r * 0.8;
+  for (let i = 1; i < pts.length; i++) {{
     const line = document.createElementNS('http://www.w3.org/2000/svg','line');
     line.setAttribute('x1', pts[i-1].x); line.setAttribute('y1', pts[i-1].y);
     line.setAttribute('x2', pts[i].x);   line.setAttribute('y2', pts[i].y);
     line.setAttribute('stroke', color);
-    line.setAttribute('stroke-width', pts[0].r * 0.9);
+    line.setAttribute('stroke-width', strokeW);
     line.setAttribute('stroke-linecap','round');
-    line.setAttribute('opacity','0.55');
+    line.setAttribute('opacity','0.6');
     line.classList.add('sel-line');
     svg.appendChild(line);
   }}
@@ -652,14 +652,16 @@ function drawSelectionLine(cells, color='#ffa000') {{
 
 function drawFoundLine(cells, color) {{
   const pts = cells.map(([r,c]) => cellCenter(document.getElementById(`cell-${{r}}-${{c}}`)));
-  for (let i=1; i<pts.length; i++) {{
+  if (pts.length < 2) return;
+  const strokeW = pts[0].r * 0.75;
+  for (let i = 1; i < pts.length; i++) {{
     const line = document.createElementNS('http://www.w3.org/2000/svg','line');
     line.setAttribute('x1', pts[i-1].x); line.setAttribute('y1', pts[i-1].y);
     line.setAttribute('x2', pts[i].x);   line.setAttribute('y2', pts[i].y);
     line.setAttribute('stroke', color);
-    line.setAttribute('stroke-width', pts[0].r * 0.85);
+    line.setAttribute('stroke-width', strokeW);
     line.setAttribute('stroke-linecap','round');
-    line.setAttribute('opacity','0.6');
+    line.setAttribute('opacity','0.55');
     line.classList.add('found-line');
     svg.appendChild(line);
   }}
