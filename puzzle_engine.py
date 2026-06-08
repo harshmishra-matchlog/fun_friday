@@ -41,7 +41,9 @@ def _place_word_snake(word, grid, occupied, size, attempts=800):
     return None
 
 def optimal_grid_size(words):
-    return 8  # fixed 8x8
+    total_letters = sum(len(w) for w in words)
+    size = math.ceil(math.sqrt(total_letters * 1.4))
+    return max(size, 8)
 
 def generate_grid(words, size=None):
     words = [w.upper().replace(" ","") for w in words]
